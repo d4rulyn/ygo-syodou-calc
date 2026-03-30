@@ -78,13 +78,9 @@
 
   /* Header */
   .hdr{position:sticky;top:0;z-index:30;background:var(--surface);border-bottom:1px solid var(--border);transition:background var(--tr),border var(--tr)}
-  .hdr-inner{padding:.4rem .8rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
-  .hdr h1{font-size:1.1rem;font-weight:700;white-space:nowrap;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-right:.3rem}
-  .hdr-tabs{display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;flex:1}
-  .tab-btn{padding:.35rem .55rem;background:0;border:0;color:var(--text-muted);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s;border-bottom:2px solid transparent;white-space:nowrap}
-  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
-  .tab-btn:hover{color:var(--text)}
-  .hdr-actions{display:flex;align-items:center;gap:.3rem;margin-left:auto}
+  .hdr-row1{padding:.4rem .8rem;display:flex;align-items:center;gap:.4rem}
+  .hdr h1{font-size:1.1rem;font-weight:700;white-space:nowrap;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-right:.3rem;flex:1}
+  .hdr-actions{display:flex;align-items:center;gap:.3rem}
   .undo-redo{display:flex;gap:.15rem}
   .undo-redo button{width:28px;height:28px;background:0;border:1px solid var(--border);border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--text-muted);transition:all .15s}
   .undo-redo button:hover:not(:disabled){background:var(--bg3);color:var(--text);border-color:var(--accent)}
@@ -92,9 +88,13 @@
   .theme-btn{width:28px;height:28px;border:2px solid transparent;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;background:0;transition:all .2s}
   .theme-btn:hover{background:var(--bg3)}
   .theme-btn.active{border-color:var(--accent);background:var(--bg3)}
+  .hdr-row2{display:flex;padding:0 .8rem;border-top:1px solid var(--border)}
+  .tab-btn{padding:.4rem .7rem;background:0;border:0;color:var(--text-muted);font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;border-bottom:2px solid transparent;white-space:nowrap;flex:1;text-align:center}
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab-btn:hover{color:var(--text)}
   @media(max-width:600px){
-    .hdr h1{font-size:.9rem;margin-right:.15rem}
-    .tab-btn{font-size:.7rem;padding:.3rem .35rem}
+    .hdr h1{font-size:.9rem}
+    .tab-btn{font-size:.72rem;padding:.35rem .3rem}
     .undo-redo button,.theme-btn{width:26px;height:26px;font-size:.75rem}
   }
 
@@ -239,16 +239,10 @@
 <!-- Main -->
 <div class="main">
   <div class="hdr">
-    <div class="hdr-inner">
+    <div class="hdr-row1">
       <button class="sb-toggle" id="sb-toggle">☰</button>
       <h1>YGO 初動計算機</h1>
-      <div class="hdr-tabs">
-        <button class="tab-btn active" data-tab="deck">デッキ</button>
-        <button class="tab-btn" data-tab="combo">組み合わせ</button>
-        <button class="tab-btn" data-tab="calc">初動計算</button>
-      </div>
       <div class="hdr-actions">
-        <button class="tab-btn" data-tab="help" style="font-size:.72rem;opacity:.7">使い方</button>
         <div class="undo-redo">
           <button id="undo-btn" disabled title="元に戻す (Ctrl+Z)">↩</button>
           <button id="redo-btn" disabled title="やり直す (Ctrl+Y)">↪</button>
@@ -257,6 +251,12 @@
         <button class="theme-btn" data-theme="dark">🌙</button>
         <button class="theme-btn" data-theme="hacker">💀</button>
       </div>
+    </div>
+    <div class="hdr-row2">
+      <button class="tab-btn active" data-tab="deck">デッキ</button>
+      <button class="tab-btn" data-tab="combo">組み合わせ</button>
+      <button class="tab-btn" data-tab="calc">初動計算</button>
+      <button class="tab-btn" data-tab="help" style="opacity:.6">使い方</button>
     </div>
   </div>
 
