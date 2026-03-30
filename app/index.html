@@ -335,11 +335,12 @@
             <h3>枚数の意味</h3>
             <ul>
               <li><strong>正の数 (1, 2, 3)</strong> → そのカードを <strong>N枚以上</strong> 引く必要がある</li>
-              <li><strong>0</strong> → そのカードを <strong>1枚も引かない</strong> ことが条件</li>
-              <li><strong>負の数 (-1, -2)</strong> → そのカードを <strong>|値+1|枚以下</strong> しか引かないことが条件
+              <li><strong>0</strong> → 条件なし（無視されます）</li>
+              <li><strong>負の数 (-1, -2, -3)</strong> → そのカードを引かないことが条件
                 <ul>
-                  <li>-1 → 0枚以下（= 0と同じ）</li>
+                  <li>-1 → 0枚（1枚も引かない）</li>
                   <li>-2 → 1枚以下</li>
+                  <li>-3 → 2枚以下</li>
                 </ul>
               </li>
             </ul>
@@ -828,14 +829,13 @@ function comb(n,r){if(r<0||r>n)return 0;if(r===0||r===n)return 1;let v=1;for(let
 
 function checkRule(hand,rule){
   // hand: Map<cardName, drawnCount>, rule: [{name,count}]
-  // count>0 → must draw >= count; count<0 → must draw <= |count+1|; count=0 → must draw 0
+  // count>0 → must draw >= count; count<0 → must draw <= |count+1|; count=0 → ignored (no condition)
   let conditions=0;
   for(const{name,count}of rule){
-    if(!name)continue;
+    if(!name||count===0)continue;
     const drawn=hand.get(name)||0;
     if(count>0){conditions++;if(drawn<count)return false}
     else if(count<0){conditions++;if(drawn>Math.abs(count+1))return false}
-    else{conditions++;if(drawn>0)return false}
   }
   return conditions>0;
 }
