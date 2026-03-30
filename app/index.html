@@ -3,376 +3,1029 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YGO デッキPDF → 初動計算機 XLSX 変換</title>
+<title>YGO 初動計算機</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
-    background: #1a1a2e; color: #e0e0e0;
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-    padding: 2rem 1rem;
+  :root {
+    --bg:#0f0f1a;--bg2:#161625;--bg3:#1c1c30;--surface:#22223a;
+    --border:#333355;--border-hover:#6c6cff;--text:#e0e0f0;--text-muted:#8888aa;
+    --accent:#7c8aff;--accent2:#a78bfa;--ok:#4ade80;--err:#f87171;
+    --btn-bg:linear-gradient(135deg,#6366f1,#8b5cf6);
+    --btn-hover:linear-gradient(135deg,#818cf8,#a78bfa);
+    --glow:0 0 30px rgba(99,102,241,.15);--card-shadow:0 4px 24px rgba(0,0,0,.4);
+    --font:'Segoe UI','Hiragino Sans',system-ui,sans-serif;
+    --mono:'Cascadia Code','Fira Code','Consolas',monospace;
+    --tr:.3s cubic-bezier(.4,0,.2,1);
   }
-  h1 { font-size: 1.4rem; margin-bottom: 1.5rem; color: #a0c4ff; }
-  .drop-zone {
-    width: 100%; max-width: 520px;
-    border: 2px dashed #4a4a6a; border-radius: 12px;
-    padding: 3rem 2rem; text-align: center;
-    cursor: pointer; transition: .2s;
-    background: #16213e;
+  [data-theme="light"]{
+    --bg:#f5f5f9;--bg2:#eeeef4;--bg3:#e4e4ed;--surface:#fff;
+    --border:#d0d0dd;--border-hover:#6366f1;--text:#1a1a2e;--text-muted:#666680;
+    --accent:#6366f1;--accent2:#7c3aed;--ok:#16a34a;--err:#dc2626;
+    --glow:0 0 30px rgba(99,102,241,.08);--card-shadow:0 4px 24px rgba(0,0,0,.08);
   }
-  .drop-zone.hover { border-color: #a0c4ff; background: #1a2744; }
-  .drop-zone p { margin-bottom: .8rem; color: #8888aa; }
-  .drop-zone .icon { font-size: 2.5rem; margin-bottom: .5rem; }
-  input[type=file] { display: none; }
-  #status {
-    margin-top: 1.5rem; width: 100%; max-width: 520px;
-    font-size: .9rem; line-height: 1.6;
+  [data-theme="hacker"]{
+    --bg:#050505;--bg2:#0a0a0a;--bg3:#0f0f0f;--surface:#0a0a0a;
+    --border:#0f3d0f;--border-hover:#00ff41;--text:#00ff41;--text-muted:#00aa2a;
+    --accent:#00ff41;--accent2:#00cc33;--ok:#00ff41;--err:#ff3333;
+    --btn-bg:linear-gradient(135deg,#003300,#005500);
+    --btn-hover:linear-gradient(135deg,#005500,#007700);
+    --glow:0 0 40px rgba(0,255,65,.12);--card-shadow:0 0 20px rgba(0,255,65,.08);
+    --font:var(--mono);
   }
-  #status .ok { color: #66bb6a; }
-  #status .err { color: #ef5350; }
-  #card-list {
-    margin-top: 1rem; width: 100%; max-width: 520px;
-    max-height: 400px; overflow-y: auto;
-    background: #16213e; border-radius: 8px; padding: 1rem;
-    font-size: .82rem; line-height: 1.5;
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;min-height:100vh;transition:background var(--tr),color var(--tr)}
+  ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  button{font-family:var(--font)}
+  input,select{font-family:var(--font)}
+
+  /* ===== Sidebar ===== */
+  .sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;position:fixed;left:-220px;top:0;z-index:50;transition:left .3s,background var(--tr),border var(--tr)}
+  .sidebar.open{left:0}
+  /* PC: push main content when sidebar is open */
+  @media(min-width:769px){
+    .sidebar.open~.main{margin-left:220px}
+    .main{transition:margin-left .3s}
   }
-  #card-list .section { color: #a0c4ff; font-weight: bold; margin-top: .6rem; }
-  #card-list .section:first-child { margin-top: 0; }
-  #download-btn {
-    margin-top: 1.2rem; padding: .7rem 2rem;
-    background: #2979ff; color: #fff; border: none; border-radius: 8px;
-    font-size: 1rem; cursor: pointer; display: none;
+  /* Mobile: overlay with shadow */
+  @media(max-width:768px){
+    .sidebar.open{box-shadow:4px 0 24px rgba(0,0,0,.5)}
   }
-  #download-btn:hover { background: #448aff; }
+  .sb-toggle{display:flex}
+  .sb-head{padding:.8rem 1rem;font-size:.8rem;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .sb-list{flex:1;overflow-y:auto;padding:.4rem}
+  .sb-item{display:flex;align-items:center;gap:.3rem;padding:.5rem .6rem;border-radius:8px;cursor:pointer;margin-bottom:.15rem;transition:background .15s;border:1px solid transparent}
+  .sb-item:hover{background:var(--bg3)}
+  .sb-item.active{background:var(--bg3);border-color:var(--accent)}
+  .sb-item-info{flex:1;min-width:0}
+  .sb-item-name{font-size:.75rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .sb-item-name-input{font-size:.75rem;font-weight:600;width:100%;background:var(--bg3);border:1px solid var(--accent);border-radius:3px;color:var(--text);padding:0 .3rem;outline:0;font-family:var(--font)}
+  .sb-item-meta{font-size:.6rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sb-item-actions{display:flex;gap:.15rem;opacity:0;transition:opacity .15s}
+  .sb-item:hover .sb-item-actions{opacity:1}
+  .sb-item-btn{width:18px;height:18px;background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:.65rem;border-radius:3px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+  .sb-item-btn:hover{background:var(--bg2)}
+  .sb-item-btn.edit:hover{color:var(--accent)}
+  .sb-item-btn.rm:hover{color:var(--err)}
+  .sb-empty{padding:1.5rem 1rem;text-align:center;color:var(--text-muted);font-size:.72rem}
+  .sb-new{margin:.4rem;padding:.45rem;background:0;border:1px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:.72rem;cursor:pointer;transition:all .2s}
+  .sb-new:hover{border-color:var(--accent);color:var(--accent)}
+  .sb-toggle{width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--text);flex-shrink:0}
+  .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:49}
+  @media(max-width:768px){.sidebar.open~.sb-overlay{display:block}}
+
+  /* ===== Main ===== */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto}
+
+  /* Header */
+  .hdr{position:sticky;top:0;z-index:30;background:var(--surface);border-bottom:1px solid var(--border);transition:background var(--tr),border var(--tr)}
+  .hdr-inner{padding:.4rem .8rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+  .hdr h1{font-size:1.1rem;font-weight:700;white-space:nowrap;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-right:.3rem}
+  .hdr-tabs{display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;flex:1}
+  .tab-btn{padding:.35rem .55rem;background:0;border:0;color:var(--text-muted);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s;border-bottom:2px solid transparent;white-space:nowrap}
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab-btn:hover{color:var(--text)}
+  .hdr-actions{display:flex;align-items:center;gap:.3rem;margin-left:auto}
+  .undo-redo{display:flex;gap:.15rem}
+  .undo-redo button{width:28px;height:28px;background:0;border:1px solid var(--border);border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--text-muted);transition:all .15s}
+  .undo-redo button:hover:not(:disabled){background:var(--bg3);color:var(--text);border-color:var(--accent)}
+  .undo-redo button:disabled{opacity:.25;cursor:default}
+  .theme-btn{width:28px;height:28px;border:2px solid transparent;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;background:0;transition:all .2s}
+  .theme-btn:hover{background:var(--bg3)}
+  .theme-btn.active{border-color:var(--accent);background:var(--bg3)}
+  @media(max-width:600px){
+    .hdr h1{font-size:.9rem;margin-right:.15rem}
+    .tab-btn{font-size:.7rem;padding:.3rem .35rem}
+    .undo-redo button,.theme-btn{width:26px;height:26px;font-size:.75rem}
+  }
+
+  .tab-panel{display:none}.tab-panel.active{display:block}
+
+  /* Card */
+  .card{max-width:640px;margin:1rem auto;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.2rem;box-shadow:var(--card-shadow);transition:background var(--tr),border var(--tr)}
+  @media(max-width:600px){.card{margin:.6rem;border-radius:10px;padding:.8rem}}
+
+  /* Drop zone */
+  .drop{width:100%;border:2px dashed var(--border);border-radius:10px;padding:2rem 1.2rem;text-align:center;cursor:pointer;transition:all .25s;background:var(--bg2)}
+  .drop.hover{border-color:var(--border-hover);background:var(--bg3);box-shadow:var(--glow)}
+  .drop .icon{font-size:2.4rem;margin-bottom:.4rem}.drop p{color:var(--text-muted);margin-bottom:.3rem;font-size:.85rem}.drop .hint{font-size:.75rem;opacity:.7}
+  input[type=file]{display:none}
+
+  /* Status */
+  #status{margin-top:.8rem;font-size:.8rem;line-height:1.6;font-family:var(--mono)}
+  #status .ok{color:var(--ok)}#status .err{color:var(--err)}
+  #status div{animation:fadeIn .3s forwards}
+
+  /* Deck editor */
+  .deck-sec{color:var(--accent);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:.35rem 0 .15rem;border-bottom:1px solid var(--border);margin-top:.7rem;display:flex;justify-content:space-between}
+  .deck-sec:first-child{margin-top:0}
+  .deck-sec .cnt{font-size:.68rem;color:var(--text-muted);font-weight:400}
+  .deck-row{display:flex;align-items:center;gap:.35rem;padding:.2rem .15rem;border-radius:5px;transition:background .12s}
+  .deck-row:hover{background:var(--bg2)}
+  .deck-row input[type=text]{flex:1;min-width:0;padding:.25rem .4rem;background:0;border:1px solid transparent;border-radius:4px;color:var(--text);font-size:.78rem;outline:0;transition:border .2s,background .2s}
+  .deck-row input[type=text]:focus{border-color:var(--accent);background:var(--bg3)}
+  .deck-cnt{display:flex;align-items:center;gap:0}
+  .deck-cnt button{width:24px;height:24px;background:var(--bg3);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all .12s;padding:0;line-height:1}
+  .deck-cnt button:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .deck-cnt button:first-child{border-radius:5px 0 0 5px}
+  .deck-cnt button:last-child{border-radius:0 5px 5px 0}
+  .deck-cnt span{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--text);user-select:none}
+  .deck-row select{width:52px;padding:.2rem .25rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:.64rem;cursor:pointer;outline:0}
+  .deck-row .rm{width:18px;height:18px;background:0;border:0;color:var(--text-muted);cursor:pointer;font-size:.8rem;display:flex;align-items:center;justify-content:center;border-radius:3px;opacity:0;transition:all .12s}
+  .deck-row:hover .rm{opacity:1}.deck-row .rm:hover{color:var(--err);background:var(--bg3)}
+  .deck-total{display:flex;justify-content:flex-end;gap:.4rem;padding:.35rem .4rem;font-size:.75rem;color:var(--text-muted);border-top:1px solid var(--border);margin-top:.25rem}
+  .deck-total strong{color:var(--text)}
+
+  /* Combo editor */
+  .combo-empty{text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem}
+  .combo-group{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.8rem;margin-bottom:.6rem;animation:fadeIn .3s forwards}
+  .combo-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem}
+  .combo-hdr label{font-size:.72rem;color:var(--text-muted);font-weight:600;white-space:nowrap}
+  .combo-hdr input,.combo-hdr select{flex:1;padding:.3rem .5rem;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.8rem;outline:0;transition:border .2s}
+  .combo-hdr input:focus,.combo-hdr select:focus{border-color:var(--accent)}
+  .combo-mode{padding:.25rem .4rem;background:0;border:1px solid var(--border);border-radius:5px;color:var(--text-muted);cursor:pointer;font-size:.65rem;white-space:nowrap;transition:all .2s}
+  .combo-mode:hover{border-color:var(--accent);color:var(--accent)}
+  .combo-del{width:26px;height:26px;background:0;border:1px solid var(--border);border-radius:5px;color:var(--err);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .2s}
+  .combo-del:hover{background:var(--bg3);border-color:var(--err)}
+  .combo-slots{display:flex;flex-wrap:wrap;gap:.4rem}
+  .combo-slot{display:flex;align-items:center;gap:.25rem;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:.25rem .4rem}
+  .combo-slot select,.combo-slot input[type=number]{background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:.75rem;padding:.25rem .3rem;outline:0}
+  .combo-slot select{max-width:130px;min-width:90px}.combo-slot input[type=number]{width:44px;text-align:center}
+  .combo-slot .rm{width:20px;height:20px;background:0;border:0;color:var(--err);cursor:pointer;font-size:.75rem;display:flex;align-items:center;justify-content:center}
+  .combo-add-slot{padding:.25rem .6rem;background:0;border:1px dashed var(--border);border-radius:5px;color:var(--text-muted);cursor:pointer;font-size:.72rem;transition:all .2s;margin-top:.5rem}
+  .combo-add-slot:hover{border-color:var(--accent);color:var(--accent)}
+
+  .tb{display:flex;gap:.4rem;margin-bottom:.8rem}
+  .tb button{flex:1;padding:.5rem .8rem;background:var(--btn-bg);color:#fff;border:0;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s}
+  .tb button:hover{background:var(--btn-hover);transform:translateY(-1px)}
+  .tb .sec{background:0;border:1px solid var(--border);color:var(--text)}.tb .sec:hover{background:var(--bg3);border-color:var(--accent);transform:none}
+
+  /* Calc tab */
+  .calc-empty{text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.85rem}
+  .calc-settings{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
+  .calc-settings label{font-size:.75rem;color:var(--text-muted);font-weight:600}
+  .calc-settings select{padding:.3rem .5rem;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.8rem;outline:0}
+  .calc-btn{padding:.5rem 1.2rem;background:var(--btn-bg);color:#fff;border:0;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s}
+  .calc-btn:hover{background:var(--btn-hover);transform:translateY(-1px)}
+  .calc-btn:disabled{opacity:.5;cursor:default;transform:none}
+  .calc-results{margin-top:1rem}
+  .calc-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem;margin-bottom:.6rem}
+  .calc-card-title{font-size:.8rem;font-weight:700;color:var(--accent);margin-bottom:.4rem}
+  .calc-bar-wrap{margin-bottom:.4rem}
+  .calc-bar-label{display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:.2rem}
+  .calc-bar-label span:first-child{color:var(--text)}
+  .calc-bar-label span:last-child{font-weight:700;font-family:var(--mono)}
+  .calc-bar{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+  .calc-bar-fill{height:100%;border-radius:4px;transition:width .5s}
+  .calc-summary{background:var(--bg2);border:1px solid var(--accent);border-radius:10px;padding:1rem;margin-bottom:.8rem;text-align:center}
+  .calc-summary .big{font-size:2rem;font-weight:800;font-family:var(--mono);background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .calc-summary .lbl{font-size:.75rem;color:var(--text-muted);margin-top:.2rem}
+
+  /* Help tab */
+  .help{font-size:.82rem;line-height:1.7;color:var(--text)}
+  .help h2{font-size:1rem;font-weight:700;color:var(--accent);margin:1.2rem 0 .5rem;padding-bottom:.3rem;border-bottom:1px solid var(--border)}
+  .help h2:first-child{margin-top:0}
+  .help h3{font-size:.88rem;font-weight:700;color:var(--text);margin:.8rem 0 .3rem}
+  .help p{margin-bottom:.5rem}
+  .help ul{margin:0 0 .5rem 1.2rem}
+  .help li{margin-bottom:.25rem}
+  .help .step{display:flex;gap:.8rem;align-items:flex-start;margin-bottom:.8rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.8rem}
+  .help .step-num{min-width:32px;height:32px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;flex-shrink:0}
+  .help .step-body{flex:1;min-width:0}
+  .help .step-title{font-weight:700;margin-bottom:.2rem}
+  .help .diagram{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;margin:.5rem 0;font-family:var(--mono);font-size:.72rem;line-height:1.5;overflow-x:auto;white-space:pre}
+  .help .tag{display:inline-block;padding:.1rem .4rem;border-radius:4px;font-size:.7rem;font-weight:600;margin:0 .1rem}
+  .help .tag-and{background:#6366f1;color:#fff}
+  .help .tag-or{background:#8b5cf6;color:#fff}
+  .help .tag-grp{background:var(--bg3);color:var(--accent);border:1px solid var(--border)}
+  .help .key{display:inline-block;padding:.1rem .35rem;border-radius:4px;font-size:.7rem;font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);color:var(--text)}
+
+  #save-btn{margin-top:.8rem;width:100%;padding:.55rem;background:0;border:1px solid var(--accent);border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;display:none;transition:all .2s;color:var(--accent)}
+  #save-btn:hover{background:var(--accent);color:#fff}
+
+  /* Save dialog */
+  /* Generic modal overlay */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s}
+  .modal-lg{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.5rem;width:560px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+  .modal-lg .close-btn{float:right;background:0;border:0;color:var(--text-muted);font-size:1.2rem;cursor:pointer;padding:0 .2rem;line-height:1}
+  .modal-lg .close-btn:hover{color:var(--text)}
+
+  .save-dlg-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s}
+  .save-dlg{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem;width:320px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+  .save-dlg h3{font-size:.9rem;margin-bottom:.8rem;color:var(--accent)}
+  .save-dlg input{width:100%;padding:.45rem .6rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.85rem;outline:0;margin-bottom:.8rem}
+  .save-dlg input:focus{border-color:var(--accent)}
+  .save-dlg-btns{display:flex;gap:.4rem;justify-content:flex-end}
+  .save-dlg-btns button{padding:.4rem .8rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s}
+  .save-dlg-btns .cancel{background:0;border:1px solid var(--border);color:var(--text-muted)}
+  .save-dlg-btns .cancel:hover{border-color:var(--accent);color:var(--text)}
+  .save-dlg-btns .ok{background:var(--accent);border:0;color:#fff}
+  .save-dlg-btns .ok:hover{opacity:.85}
+  #dl-btn{margin-top:.5rem;width:100%;padding:.65rem;background:var(--btn-bg);color:#fff;border:0;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;display:none;transition:all .2s}
+  #dl-btn:hover{background:var(--btn-hover);transform:translateY(-1px);box-shadow:0 4px 16px rgba(99,102,241,.3)}
 </style>
 </head>
-<body>
+<body data-theme="dark">
 
-<h1>YGO デッキPDF → 初動計算機 XLSX</h1>
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-head"><span>デッキ一覧</span><button class="md-hide" onclick="sidebar.classList.remove('open')" style="background:0;border:0;color:var(--text);font-size:1.1rem;cursor:pointer">×</button></div>
+  <div class="sb-list" id="sb-list"></div>
+  <button class="sb-new" id="sb-new">+ 新規デッキ</button>
+</aside>
+<div class="sb-overlay" id="sb-overlay"></div>
 
-<div class="drop-zone" id="dropZone">
-  <div class="icon">📄</div>
-  <p>デッキ登録PDFをドラッグ＆ドロップ</p>
-  <p style="font-size:.85rem">またはクリックしてファイルを選択</p>
-  <input type="file" id="fileInput" accept=".pdf">
+<!-- Main -->
+<div class="main">
+  <div class="hdr">
+    <div class="hdr-inner">
+      <button class="sb-toggle" id="sb-toggle">☰</button>
+      <h1>YGO 初動計算機</h1>
+      <div class="hdr-tabs">
+        <button class="tab-btn active" data-tab="deck">デッキ</button>
+        <button class="tab-btn" data-tab="combo">組み合わせ</button>
+        <button class="tab-btn" data-tab="calc">初動計算</button>
+      </div>
+      <div class="hdr-actions">
+        <button class="tab-btn" data-tab="help" style="font-size:.72rem;opacity:.7">使い方</button>
+        <div class="undo-redo">
+          <button id="undo-btn" disabled title="元に戻す (Ctrl+Z)">↩</button>
+          <button id="redo-btn" disabled title="やり直す (Ctrl+Y)">↪</button>
+        </div>
+        <button class="theme-btn active" data-theme="dark">🌙</button>
+        <button class="theme-btn" data-theme="light">☀️</button>
+        <button class="theme-btn" data-theme="hacker">💀</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <!-- Deck tab -->
+    <div class="tab-panel active" id="tab-deck">
+      <div class="drop" id="dropZone">
+        <div class="icon">📄</div>
+        <p>PDF / XLSX をドラッグ＆ドロップで読み込み</p>
+        <p class="hint">またはクリックしてファイルを選択 / 下の表で手入力も可</p>
+        <input type="file" id="fileInput" accept=".pdf,.xlsx">
+      </div>
+      <div id="status"></div>
+      <div id="deck-sections"></div>
+      <div class="tb" style="margin-top:.6rem;margin-bottom:0"><button class="sec" id="add-card">+ カード追加</button></div>
+    </div>
+
+    <!-- Combo tab -->
+    <div class="tab-panel" id="tab-combo">
+      <div id="combo-empty" class="combo-empty">先に「デッキ登録」タブでカードを登録してください</div>
+      <div id="combo-editor" style="display:none">
+        <div class="tb"><button class="combo-add-grp">+ グループ追加</button><button class="sec" id="combo-clear">クリア</button></div>
+        <div id="combo-groups"></div>
+        <div class="tb" style="margin-top:.6rem;margin-bottom:0"><button class="combo-add-grp">+ グループ追加</button></div>
+      </div>
+    </div>
+
+    <!-- Calc tab -->
+    <div class="tab-panel" id="tab-calc">
+      <div id="calc-empty" class="calc-empty">デッキと初動組み合わせを設定してから計算してください</div>
+      <div id="calc-content" style="display:none">
+        <div class="calc-settings">
+          <label>手札枚数:</label>
+          <select id="calc-hand">
+            <option value="5" selected>5枚（先攻）</option>
+            <option value="6">6枚（後攻）</option>
+          </select>
+          <button class="calc-btn" id="calc-run">確率を計算</button>
+        </div>
+        <div id="calc-results"></div>
+      </div>
+    </div>
+
+    <!-- Help tab -->
+    <div class="tab-panel" id="tab-help">
+      <div class="help">
+        <h2>全体の流れ</h2>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">デッキを登録する</div>
+            <p>「デッキ」タブで、PDF / XLSX を読み込むか、手入力でカードを登録します。</p>
+            <p>PDFは <a href="https://www.db.yugioh-card.com/yugiohdb/member_deck.action" target="_blank" rel="noopener" style="color:var(--accent)">遊戯王ニューロン</a> のマイデッキからダウンロードできます。</p>
+            <div class="diagram">┌──────────────────────────┐
+│  📄 PDF/XLSX をドロップ   │
+│  または「+ カード追加」   │
+│                          │
+│  灰流うらら     [−] 3 [+]│
+│  増殖するG      [−] 1 [+]│
+│  ...                     │
+└──────────────────────────┘</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">初動の組み合わせを定義する</div>
+            <p>「組み合わせ」タブで、初動パターンを登録します。</p>
+            <p>各パターンは「この手札なら初動が成立する」という条件です。</p>
+            <div class="diagram">群: 展開A
+├─ カードX ×1以上  &  カードY ×1以上
+│
+群: 展開B
+├─ カードZ ×1以上
+│
+群: (未設定)
+├─ カードW ×2以上</div>
+            <h3>枚数の意味</h3>
+            <ul>
+              <li><strong>正の数 (1, 2, 3)</strong> → そのカードを <strong>N枚以上</strong> 引く必要がある</li>
+              <li><strong>0</strong> → そのカードを <strong>1枚も引かない</strong> ことが条件</li>
+              <li><strong>負の数 (-1, -2)</strong> → そのカードを <strong>|値+1|枚以下</strong> しか引かないことが条件
+                <ul>
+                  <li>-1 → 0枚以下（= 0と同じ）</li>
+                  <li>-2 → 1枚以下</li>
+                </ul>
+              </li>
+            </ul>
+            <h3>群について</h3>
+            <p>群はパターンをグループ分けするためのラベルです。</p>
+            <ul>
+              <li>同じ群のパターンは <span class="tag tag-or">OR</span> で扱われます（いずれか1つ成立すればOK）</li>
+              <li>群を設定しないパターンは自動的に「(未分類)」群にまとまります</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">初動確率を計算する</div>
+            <p>「初動計算」タブで手札枚数（先攻5枚 / 後攻6枚）を選んで「確率を計算」ボタンを押します。</p>
+          </div>
+        </div>
+
+        <h2>計算結果の見方</h2>
+        <div class="diagram">┌─────────────────────────────┐
+│       89.23%                │  ← 全パターン通しての確率
+│  いずれかの初動を引く確率   │
+└─────────────────────────────┘
+┌ 群ごとの確率 ───────────────┐
+│  展開A（5パターン） 72.15%  │  ← 群内いずれか成立
+│  展開B（3パターン） 65.40%  │
+│  (未分類)（2パターン）38.20%│
+└─────────────────────────────┘
+┌ 群の組み合わせ ─────────────┐
+│  展開A × 展開B AND  51.20%  │  ← 両方同時に成立
+│  展開A × 展開B OR   86.35%  │  ← どちらか成立
+│  ...                        │
+└─────────────────────────────┘</div>
+        <ul>
+          <li><span class="tag tag-and">AND</span> = 選んだ群の <strong>全て</strong> が同時に成立する確率</li>
+          <li><span class="tag tag-or">OR</span> = 選んだ群の <strong>いずれか</strong> が成立する確率</li>
+        </ul>
+
+        <h2>保存と読み込み</h2>
+        <ul>
+          <li><strong>💾 デッキを保存</strong> → 名前を付けてサイドバーに保存（ブラウザに記憶されます）</li>
+          <li><strong>⬇ XLSX をダウンロード</strong> → Excel ファイルとして書き出し</li>
+          <li><strong>XLSX 読み込み</strong> → このアプリで保存した XLSX をドロップすると復元できます</li>
+          <li>サイドバーの ✎ でデッキ名を変更、× で削除</li>
+        </ul>
+
+        <h2>キーボードショートカット</h2>
+        <ul>
+          <li><span class="key">Ctrl</span> + <span class="key">Z</span> → 元に戻す（Mac: <span class="key">⌘</span><span class="key">Z</span>）</li>
+          <li><span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Ctrl</span> + <span class="key">Shift</span> + <span class="key">Z</span> → やり直す</li>
+        </ul>
+
+        <h2>対応ファイル</h2>
+        <ul>
+          <li><strong>PDF</strong> → OCG公式デッキ登録シート。<a href="https://www.db.yugioh-card.com/yugiohdb/member_deck.action" target="_blank" rel="noopener" style="color:var(--accent)">遊戯王ニューロン</a>のマイデッキからPDFをダウンロードできます</li>
+          <li><strong>XLSX</strong> → このアプリで出力したファイル（デッキ + 組み合わせを復元）</li>
+        </ul>
+        <h2>プライバシーについて</h2>
+        <p>このアプリは<strong>完全にブラウザ内で動作</strong>します。入力したカード情報、アップロードしたPDF・XLSXファイルの内容は外部サーバーに一切送信されません。保存データはお使いのブラウザの localStorage にのみ保存され、第三者がアクセスすることはありません。</p>
+      </div>
+    </div>
+
+    <button id="save-btn">💾 デッキを保存</button>
+    <button id="dl-btn">⬇ XLSX をダウンロード</button>
+  </div>
+
+  <footer style="padding:1rem 0;text-align:center">
+    <div style="display:flex;gap:.8rem;justify-content:center;align-items:center">
+      <a href="https://github.com/d4rulyn/ygo-syodou-calc" title="GitHub" style="color:var(--text-muted);transition:color .2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.8.1-.7.1-.7 1.2.1 1.9 1.3 1.9 1.3 1.1 1.9 2.9 1.3 3.6 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.4 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.7.3 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg></a>
+      <a href="https://x.com/d4rulyn" title="X (Twitter)" style="color:var(--text-muted);transition:color .2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+      <a href="https://youtube.com/@d4rulyn" title="YouTube" style="color:var(--text-muted);transition:color .2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.55 15.57V8.43L15.82 12z"/></svg></a>
+    </div>
+  </footer>
 </div>
 
-<div id="status"></div>
-<div id="card-list"></div>
-<button id="download-btn">XLSX をダウンロード</button>
-
-<!-- PDF.js -->
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs" type="module"></script>
-<!-- ExcelJS -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <script type="module">
-// ============================================================
-// PDF.js setup
-// ============================================================
-const pdfjsLib = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+// ===== Theme =====
+const themeButtons = document.querySelectorAll('.theme-btn');
+const saved = localStorage.getItem('ygo-theme');
+if(saved){document.body.setAttribute('data-theme',saved);themeButtons.forEach(b=>b.classList.toggle('active',b.dataset.theme===saved))}
+themeButtons.forEach(btn=>btn.addEventListener('click',()=>{
+  const t=btn.dataset.theme;document.body.setAttribute('data-theme',t);localStorage.setItem('ygo-theme',t);
+  themeButtons.forEach(b=>b.classList.toggle('active',b.dataset.theme===t));
+}));
 
-// ============================================================
-// X coordinate ranges (same as Python notebook)
-// ============================================================
-const X_RANGES = {
-  mon_name:   [68, 217],  mon_cnt:   [217, 237],
-  mag_name:   [237, 387], mag_cnt:   [387, 407],
-  trap_name:  [407, 557], trap_cnt:  [557, 580],
-  extra_name: [68, 217],  extra_cnt: [217, 237],
-  side_name:  [237, 387], side_cnt:  [387, 407],
+// ===== Tabs =====
+const tabBtns=document.querySelectorAll('.tab-btn');
+const tabPanels=document.querySelectorAll('.tab-panel');
+tabBtns.forEach(btn=>btn.addEventListener('click',()=>{
+  tabBtns.forEach(b=>b.classList.remove('active'));tabPanels.forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+}));
+
+// ===== Sidebar toggle (mobile) =====
+const sidebar=document.getElementById('sidebar'),sbOverlay=document.getElementById('sb-overlay');
+// Default open on PC
+if(window.innerWidth>768)sidebar.classList.add('open');
+document.getElementById('sb-toggle').addEventListener('click',()=>sidebar.classList.toggle('open'));
+sbOverlay.addEventListener('click',()=>sidebar.classList.remove('open'));
+
+// ===== PDF.js =====
+const pdfjsLib=await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+
+// ===== Constants =====
+const SECTIONS=["モンスターカード","魔法カード","罠カード","エクストラデッキ","サイドデッキ"];
+const SEC_SHORT={モンスターカード:"モン",魔法カード:"魔法",罠カード:"罠",エクストラデッキ:"EX",サイドデッキ:"サイド"};
+const MAIN_SEC=["モンスターカード","魔法カード","罠カード"];
+const X_RANGES={
+  mon_name:[68,217],mon_cnt:[217,237],mag_name:[237,387],mag_cnt:[387,407],
+  trap_name:[407,557],trap_cnt:[557,580],extra_name:[68,217],extra_cnt:[217,237],
+  side_name:[237,387],side_cnt:[387,407]
 };
 
-// ============================================================
-// PDF Parsing
-// ============================================================
+// ===== State =====
+let currentCards=[], comboGroups=[], savedDecks=[], activeDeckId=null;
+const STORAGE_KEY="ygo-saved-decks";
 
-/** Extract words with {text, x, top} from a PDF.js page (top-down coords). */
-async function extractWords(page) {
-  const vp = page.getViewport({ scale: 1 });
-  const pageHeight = vp.height;
-  const content = await page.getTextContent();
-  return content.items
-    .filter(item => item.str.trim())
-    .map(item => ({
-      text: item.str.trim(),
-      x: item.transform[4],
-      top: pageHeight - item.transform[5],  // flip Y
-    }));
+// ===== Undo / Redo =====
+const MAX_HISTORY=100;
+let undoStack=[], redoStack=[], skipSnapshot=false;
+const undoBtn=document.getElementById('undo-btn');
+const redoBtn=document.getElementById('redo-btn');
+
+function snapshot(){
+  return JSON.stringify({cards:currentCards,combos:comboGroups});
 }
+function pushUndo(){
+  if(skipSnapshot)return;
+  const s=snapshot();
+  if(undoStack.length&&undoStack[undoStack.length-1]===s)return; // no change
+  undoStack.push(s);
+  if(undoStack.length>MAX_HISTORY)undoStack.shift();
+  redoStack=[];
+  updateUndoButtons();
+}
+function restoreSnapshot(json){
+  skipSnapshot=true;
+  const s=JSON.parse(json);
+  currentCards=s.cards;comboGroups=s.combos;
+  renderDeckEditor();renderComboGroups();updateUI();
+  skipSnapshot=false;
+}
+function undo(){
+  if(undoStack.length<2)return;
+  redoStack.push(undoStack.pop());
+  restoreSnapshot(undoStack[undoStack.length-1]);
+  updateUndoButtons();
+}
+function redo(){
+  if(!redoStack.length)return;
+  const s=redoStack.pop();
+  undoStack.push(s);
+  restoreSnapshot(s);
+  updateUndoButtons();
+}
+function updateUndoButtons(){
+  undoBtn.disabled=undoStack.length<2;
+  redoBtn.disabled=redoStack.length===0;
+}
+undoBtn.addEventListener('click',undo);
+redoBtn.addEventListener('click',redo);
 
-/** Detect Y bounds for each section from words. */
-function findYBounds(words) {
-  const b = {
-    main_header: null, main_end: null,
-    extra_header: null, extra_end: null,
-    side_header: null, side_end: null,
-  };
-  for (const w of words) {
-    const txt = w.text;
-    const top = w.top;
-    if (txt.includes("モンスターカード合計"))          b.main_end = top;
-    else if (txt.includes("モンスターカード") && !b.main_header)  b.main_header = top;
-    else if (txt.includes("エクストラデッキ合計"))      b.extra_end = top;
-    else if (txt.includes("エクストラデッキ") && !b.extra_header) b.extra_header = top;
-    else if (txt.includes("サイドデッキ合計"))          b.side_end = top;
-    else if (txt.includes("サイドデッキ") && !b.side_header)      b.side_header = top;
+// Keyboard: Ctrl+Z / Cmd+Z = undo, Ctrl+Y / Cmd+Shift+Z / Ctrl+Shift+Z = redo
+document.addEventListener('keydown',e=>{
+  // Skip if user is typing in an input/select
+  const tag=e.target.tagName;
+  const isInput=tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT';
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(!ctrl)return;
+  if(e.key==='z'||e.key==='Z'){
+    if(e.shiftKey){
+      if(isInput)return; // let browser handle
+      e.preventDefault();redo();
+    }else{
+      if(isInput)return;
+      e.preventDefault();undo();
+    }
+  }else if(e.key==='y'||e.key==='Y'){
+    if(isInput)return;
+    e.preventDefault();redo();
+  }
+});
+
+const statusEl=document.getElementById('status');
+const deckEl=document.getElementById('deck-sections');
+const comboEmpty=document.getElementById('combo-empty');
+const comboEditor=document.getElementById('combo-editor');
+const comboGroupsEl=document.getElementById('combo-groups');
+const dlBtn=document.getElementById('dl-btn');
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+const sbListEl=document.getElementById('sb-list');
+
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function log(m,c=""){statusEl.innerHTML+=`<div class="${c}">${m}</div>`}
+function clearStatus(){statusEl.innerHTML=""}
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function fmtTime(ts){const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`}
+
+// ===== PDF Parser =====
+function findYBounds(words){
+  const b={main_header:null,main_end:null,extra_header:null,extra_end:null,side_header:null,side_end:null};
+  for(const w of words){
+    if(w.text.includes("モンスターカード合計"))b.main_end=w.top;
+    else if(w.text.includes("モンスターカード")&&!b.main_header)b.main_header=w.top;
+    else if(w.text.includes("エクストラデッキ合計"))b.extra_end=w.top;
+    else if(w.text.includes("エクストラデッキ")&&!b.extra_header)b.extra_header=w.top;
+    else if(w.text.includes("サイドデッキ合計"))b.side_end=w.top;
+    else if(w.text.includes("サイドデッキ")&&!b.side_header)b.side_header=w.top;
   }
   return b;
 }
-
-/**
- * Filter words within an X/Y box, group into rows by Y proximity,
- * and return sorted lines (top to bottom).
- */
-function cropWords(words, x0, x1, yTop, yBottom, tolerance = 4) {
-  // Filter to bounding box (yTop < top < yBottom)
-  const filtered = words.filter(w =>
-    w.x >= x0 && w.x < x1 && w.top > yTop && w.top < yBottom
-  );
-
-  // Group by Y proximity into rows
-  const rows = [];
-  const sorted = [...filtered].sort((a, b) => a.top - b.top);
-  for (const w of sorted) {
-    const existing = rows.find(r => Math.abs(r[0].top - w.top) < tolerance);
-    if (existing) existing.push(w);
-    else rows.push([w]);
-  }
-
-  // Sort each row by X, concat text
-  return rows
-    .sort((a, b) => a[0].top - b[0].top)
-    .map(row => row.sort((a, b) => a.x - b.x).map(w => w.text).join(""));
+function cropWords(words,x0,x1,yT,yB,tol=4){
+  const f=words.filter(w=>w.x>=x0&&w.x<x1&&w.top>yT&&w.top<yB);
+  const rows=[];const sorted=[...f].sort((a,b)=>a.top-b.top);
+  for(const w of sorted){const r=rows.find(r=>Math.abs(r[0].top-w.top)<tol);if(r)r.push(w);else rows.push([w])}
+  return rows.sort((a,b)=>a[0].top-b[0].top).map(r=>r.sort((a,b)=>a.x-b.x).map(w=>w.text).join(""));
 }
-
-/** Extract card entries for one section. */
-function extractSection(words, section, nameKey, cntKey, yTop, yBottom) {
-  const nameLines = cropWords(words, ...X_RANGES[nameKey], yTop, yBottom);
-  const cntLines  = cropWords(words, ...X_RANGES[cntKey],  yTop, yBottom);
-
-  // Parse counts (only keep integer values)
-  const counts = [];
-  for (const ln of cntLines) {
-    const n = parseInt(ln, 10);
-    if (!isNaN(n)) counts.push(n);
-  }
-
-  const cards = [];
-  for (let i = 0; i < Math.min(nameLines.length, counts.length); i++) {
-    const name = nameLines[i];
-    // Skip header-like or total-like lines
-    if (!name || name.includes("合計") || name.includes("枚数") || name.includes("カード名")) continue;
-    cards.push({ name, count: counts[i], section });
+function extractSec(words,section,nk,ck,yT,yB){
+  const names=cropWords(words,...X_RANGES[nk],yT,yB);
+  const cnts=cropWords(words,...X_RANGES[ck],yT,yB).map(l=>parseInt(l,10)).filter(n=>!isNaN(n));
+  const cards=[];
+  for(let i=0;i<Math.min(names.length,cnts.length);i++){
+    if(!names[i]||names[i].includes("合計")||names[i].includes("枚数")||names[i].includes("カード名"))continue;
+    cards.push({name:names[i],count:cnts[i],section});
   }
   return cards;
 }
-
-/** Parse a deck registration PDF and return structured card list. */
-async function parseDeckPDF(arrayBuffer) {
-  const pdf = await pdfjsLib.getDocument({
-    data: arrayBuffer,
-    cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/cmaps/",
-    cMapPacked: true,
-  }).promise;
-
-  const page = await pdf.getPage(1);
-  const words = await extractWords(page);
-  const b = findYBounds(words);
-
-  if (b.main_header == null || b.main_end == null) {
-    throw new Error("メインデッキのセクション境界が検出できませんでした");
-  }
-
-  const cards = [
-    ...extractSection(words, "モンスターカード", "mon_name",   "mon_cnt",   b.main_header, b.main_end),
-    ...extractSection(words, "魔法カード",       "mag_name",   "mag_cnt",   b.main_header, b.main_end),
-    ...extractSection(words, "罠カード",         "trap_name",  "trap_cnt",  b.main_header, b.main_end),
+async function parsePDF(ab){
+  const pdf=await pdfjsLib.getDocument({data:ab,cMapUrl:"https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/cmaps/",cMapPacked:true}).promise;
+  const page=await pdf.getPage(1);const vp=page.getViewport({scale:1});const h=vp.height;
+  const content=await page.getTextContent();
+  const words=content.items.filter(i=>i.str.trim()).map(i=>({text:i.str.trim(),x:i.transform[4],top:h-i.transform[5]}));
+  const b=findYBounds(words);
+  if(b.main_header==null||b.main_end==null)throw new Error("メインデッキのセクション境界が検出できませんでした");
+  const cards=[
+    ...extractSec(words,"モンスターカード","mon_name","mon_cnt",b.main_header,b.main_end),
+    ...extractSec(words,"魔法カード","mag_name","mag_cnt",b.main_header,b.main_end),
+    ...extractSec(words,"罠カード","trap_name","trap_cnt",b.main_header,b.main_end),
   ];
-  if (b.extra_header != null && b.extra_end != null) {
-    cards.push(...extractSection(words, "エクストラデッキ", "extra_name", "extra_cnt", b.extra_header, b.extra_end));
-  }
-  if (b.side_header != null && b.side_end != null) {
-    cards.push(...extractSection(words, "サイドデッキ", "side_name", "side_cnt", b.side_header, b.side_end));
-  }
-
+  if(b.extra_header!=null&&b.extra_end!=null)cards.push(...extractSec(words,"エクストラデッキ","extra_name","extra_cnt",b.extra_header,b.extra_end));
+  if(b.side_header!=null&&b.side_end!=null)cards.push(...extractSec(words,"サイドデッキ","side_name","side_cnt",b.side_header,b.side_end));
   return cards;
 }
 
-// ============================================================
-// XLSX Generation (ExcelJS)
-// ============================================================
-
-const HEADER_FILL = {
-  type: "pattern", pattern: "solid",
-  fgColor: { argb: "FFC9DAF8" },
-};
-
-function setHeader(cell, value) {
-  cell.value = value;
-  cell.fill = HEADER_FILL;
+// ===== XLSX Parser =====
+async function parseXLSX(ab){
+  const wb=new ExcelJS.Workbook();await wb.xlsx.load(ab);
+  const cards=[],combos=[];
+  const ws2=wb.getWorksheet("デッキ");
+  if(ws2)ws2.eachRow((r,ri)=>{if(ri===1)return;const n=r.getCell(2).value,c=r.getCell(3).value;if(n&&typeof c==="number"&&c>0)cards.push({name:String(n),count:c,section:"モンスターカード"})});
+  const nCols=[2,4,6,8,10,12],cCols=[3,5,7,9,11,13];
+  const ws1=wb.getWorksheet("初動組み合わせ");
+  if(ws1)ws1.eachRow((r,ri)=>{
+    if(ri===1)return;const g=String(r.getCell(1).value||"");const slots=[];
+    for(let i=0;i<6;i++){const n=r.getCell(nCols[i]).value,c=r.getCell(cCols[i]).value;if(n)slots.push({name:String(n),count:typeof c==="number"?c:parseInt(c)||1})}
+    if(g||slots.length)combos.push({group:g,slots:slots.length?slots:[{name:"",count:1}]});
+  });
+  return{cards,combos};
 }
 
-async function generateXLSX(cards) {
-  const wb = new ExcelJS.Workbook();
-
-  // ---- Sheet1: 初動組み合わせ ----
-  const ws1 = wb.addWorksheet("初動組み合わせ");
-  setHeader(ws1.getCell("A1"), "群");
-  const nameCols = ["B", "D", "F", "H", "J", "L"];
-  const cntCols  = ["C", "E", "G", "I", "K", "M"];
-  for (let i = 0; i < 6; i++) {
-    setHeader(ws1.getCell(`${nameCols[i]}1`), "名前");
-    setHeader(ws1.getCell(`${cntCols[i]}1`), "枚数");
+// ===== XLSX Generator =====
+const HFILL={type:"pattern",pattern:"solid",fgColor:{argb:"FFC9DAF8"}};
+function setH(cell,v){cell.value=v;cell.fill=HFILL}
+async function generateXLSX(cards,combos=[]){
+  const wb=new ExcelJS.Workbook();
+  const ws1=wb.addWorksheet("初動組み合わせ");
+  setH(ws1.getCell("A1"),"群");
+  const nC=["B","D","F","H","J","L"],cC=["C","E","G","I","K","M"];
+  for(let i=0;i<6;i++){setH(ws1.getCell(nC[i]+"1"),"名前");setH(ws1.getCell(cC[i]+"1"),"枚数")}
+  ws1.getColumn("A").width=8.13;for(const c of cC)ws1.getColumn(c).width=7;
+  for(let ri=0;ri<combos.length;ri++){
+    const row=ri+2,g=combos[ri];ws1.getCell("A"+row).value=g.group||"";
+    for(let si=0;si<g.slots.length&&si<6;si++){if(g.slots[si].name){ws1.getCell(nC[si]+row).value=g.slots[si].name;ws1.getCell(cC[si]+row).value=g.slots[si].count}}
   }
-  ws1.getColumn("A").width = 8.13;
-  for (const c of cntCols) ws1.getColumn(c).width = 7.0;
-
-  // Data validation: name columns -> dropdown from デッキ sheet
-  for (const col of nameCols) {
-    for (let r = 2; r <= 2000; r++) {
-      ws1.getCell(`${col}${r}`).dataValidation = {
-        type: "list",
-        formulae: ["'デッキ'!$B$2:$B$2001"],
-        allowBlank: true,
-        showDropDown: false,
-      };
-    }
-  }
-  // Data validation: count columns -> fixed list
-  for (const col of cntCols) {
-    for (let r = 2; r <= 2000; r++) {
-      ws1.getCell(`${col}${r}`).dataValidation = {
-        type: "list",
-        formulae: ['"0,1,2,3,-1,-2,-3"'],
-        allowBlank: true,
-        showDropDown: false,
-      };
-    }
-  }
-
-  // ---- Sheet2: デッキ ----
-  const ws2 = wb.addWorksheet("デッキ");
-  for (const [i, label] of ["群", "名前", "枚数", "合計枚数"].entries()) {
-    setHeader(ws2.getCell(1, i + 1), label);
-  }
-
-  // Main deck cards only (monster/magic/trap)
-  const mainCards = cards.filter(c =>
-    ["モンスターカード", "魔法カード", "罠カード"].includes(c.section)
-  );
-  for (let i = 0; i < mainCards.length; i++) {
-    ws2.getCell(i + 2, 2).value = mainCards[i].name;
-    ws2.getCell(i + 2, 3).value = mainCards[i].count;
-  }
-
-  // D2: total formula
-  ws2.getCell("D2").value = { formula: "SUM(C2:C63)" };
-
-  ws2.getColumn("A").width = 5.88;
-  ws2.getColumn("B").width = 20.0;
-  ws2.getColumn("C").width = 6.88;
-
-  // Data validation: C2:C63
-  for (let r = 2; r <= 63; r++) {
-    ws2.getCell(`C${r}`).dataValidation = {
-      type: "list",
-      formulae: ['"0,1,2,3"'],
-      allowBlank: true,
-      showDropDown: false,
-    };
-  }
-
+  for(const col of nC)for(let r=2;r<=2000;r++)ws1.getCell(col+r).dataValidation={type:"list",formulae:["'デッキ'!$B$2:$B$2001"],allowBlank:true};
+  for(const col of cC)for(let r=2;r<=2000;r++)ws1.getCell(col+r).dataValidation={type:"list",formulae:['"0,1,2,3,-1,-2,-3"'],allowBlank:true};
+  const ws2=wb.addWorksheet("デッキ");
+  ["群","名前","枚数","合計枚数"].forEach((l,i)=>setH(ws2.getCell(1,i+1),l));
+  const mc=cards.filter(c=>MAIN_SEC.includes(c.section));
+  for(let i=0;i<mc.length;i++){ws2.getCell(i+2,2).value=mc[i].name;ws2.getCell(i+2,3).value=mc[i].count}
+  ws2.getCell("D2").value={formula:"SUM(C2:C63)"};
+  ws2.getColumn("A").width=5.88;ws2.getColumn("B").width=20;ws2.getColumn("C").width=6.88;
+  for(let r=2;r<=63;r++)ws2.getCell("C"+r).dataValidation={type:"list",formulae:['"0,1,2,3"'],allowBlank:true};
   return wb.xlsx.writeBuffer();
 }
 
-// ============================================================
-// UI
-// ============================================================
-
-const dropZone  = document.getElementById("dropZone");
-const fileInput = document.getElementById("fileInput");
-const statusEl  = document.getElementById("status");
-const cardList  = document.getElementById("card-list");
-const dlBtn     = document.getElementById("download-btn");
-
-let lastBuffer = null;
-
-function log(msg, cls = "") {
-  statusEl.innerHTML += `<div class="${cls}">${msg}</div>`;
+// ===== Sidebar / Storage =====
+function loadDecks(){try{savedDecks=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{savedDecks=[]}}
+function persistDecks(){localStorage.setItem(STORAGE_KEY,JSON.stringify(savedDecks))}
+function saveAsNew(name){
+  if(!name)name=defaultDeckName();
+  const data={cards:JSON.parse(JSON.stringify(currentCards)),combos:JSON.parse(JSON.stringify(comboGroups))};
+  const d={id:genId(),name,...data,timestamp:Date.now()};
+  savedDecks.unshift(d);activeDeckId=d.id;
+  persistDecks();renderSidebar();
 }
-
-function clearUI() {
-  statusEl.innerHTML = "";
-  cardList.innerHTML = "";
-  dlBtn.style.display = "none";
-  lastBuffer = null;
+function loadDeck(id){
+  const d=savedDecks.find(d=>d.id===id);if(!d)return;
+  activeDeckId=id;currentCards=JSON.parse(JSON.stringify(d.cards));comboGroups=JSON.parse(JSON.stringify(d.combos));
+  renderDeckEditor();renderComboGroups();updateUI();renderSidebar();clearStatus();sidebar.classList.remove('open');
 }
-
-async function handleFile(file) {
-  clearUI();
-  if (!file.name.toLowerCase().endsWith(".pdf")) {
-    log("PDFファイルを選択してください。", "err");
-    return;
+function removeDeckById(id){savedDecks=savedDecks.filter(d=>d.id!==id);if(activeDeckId===id)activeDeckId=null;persistDecks();renderSidebar()}
+function renderSidebar(){
+  if(!savedDecks.length){sbListEl.innerHTML='<div class="sb-empty">保存済みデッキなし</div>';return}
+  sbListEl.innerHTML="";
+  for(const d of savedDecks){
+    const total=d.cards.reduce((s,c)=>s+c.count,0);
+    const div=document.createElement('div');div.className='sb-item'+(d.id===activeDeckId?' active':'');
+    div.innerHTML=`<div class="sb-item-info" data-id="${d.id}"><div class="sb-item-name">${esc(d.name)}</div><div class="sb-item-meta">${d.cards.length}種 ${total}枚 / ${fmtTime(d.timestamp)}</div></div><div class="sb-item-actions"><button class="sb-item-btn edit" data-id="${d.id}" title="名前を編集">✎</button><button class="sb-item-btn rm" data-id="${d.id}" title="削除">×</button></div>`;
+    sbListEl.appendChild(div);
   }
-  log(`読み込み中: ${file.name} ...`);
+}
+function startRename(id){
+  const deck=savedDecks.find(d=>d.id===id);if(!deck)return;
+  const nameEl=sbListEl.querySelector(`.sb-item-info[data-id="${id}"] .sb-item-name`);if(!nameEl)return;
+  const input=document.createElement('input');input.className='sb-item-name-input';input.value=deck.name;
+  nameEl.replaceWith(input);input.focus();input.select();
+  const finish=()=>{const val=input.value.trim()||defaultDeckName();deck.name=val;persistDecks();renderSidebar()};
+  input.addEventListener('blur',finish);
+  input.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();input.blur()}if(ev.key==='Escape'){input.value=deck.name;input.blur()}});
+}
+sbListEl.addEventListener('click',e=>{
+  const editBtn=e.target.closest('.sb-item-btn.edit');
+  if(editBtn){startRename(editBtn.dataset.id);return}
+  const rmBtn=e.target.closest('.sb-item-btn.rm');
+  if(rmBtn){removeDeckById(rmBtn.dataset.id);return}
+  if(e.target.classList.contains('sb-item-name-input'))return;
+  const info=e.target.closest('.sb-item-info');if(info)loadDeck(info.dataset.id);
+});
+sbListEl.addEventListener('dblclick',e=>{
+  const nameEl=e.target.closest('.sb-item-name');if(!nameEl)return;
+  const id=nameEl.closest('.sb-item-info')?.dataset.id;if(id)startRename(id);
+});
+document.getElementById('sb-new').addEventListener('click',()=>{
+  activeDeckId=null;currentCards=[];comboGroups=[];
+  renderDeckEditor();renderComboGroups();updateUI();clearStatus();renderSidebar();sidebar.classList.remove('open');
+});
+loadDecks();renderSidebar();
+pushUndo(); // initial snapshot
 
-  try {
-    const ab = await file.arrayBuffer();
-    log("PDF を解析中 ...");
-    const cards = await parseDeckPDF(ab);
-
-    log(`<span class="ok">抽出完了: ${cards.length} 種 / ${cards.reduce((s, c) => s + c.count, 0)} 枚</span>`);
-
-    // Show card list
-    let html = "";
-    let curSection = "";
-    for (const c of cards) {
-      if (c.section !== curSection) {
-        curSection = c.section;
-        html += `<div class="section">${curSection}</div>`;
-      }
-      html += `<div>${c.name} x${c.count}</div>`;
+// ===== Deck Editor =====
+function renderDeckEditor(){
+  pushUndo();
+  deckEl.innerHTML="";
+  const grouped={};for(const s of SECTIONS)grouped[s]=[];
+  for(const c of currentCards){if(!grouped[c.section])grouped[c.section]=[];grouped[c.section].push(c)}
+  for(const sec of SECTIONS){
+    const cards=grouped[sec];if(!cards.length)continue;
+    const total=cards.reduce((s,c)=>s+c.count,0);
+    const title=document.createElement('div');title.className='deck-sec';
+    title.innerHTML=`<span>${sec}</span><span class="cnt">${cards.length}種 / ${total}枚</span>`;
+    deckEl.appendChild(title);
+    for(const card of cards){
+      const ci=currentCards.indexOf(card);const row=document.createElement('div');row.className='deck-row';
+      row.innerHTML=`<input type="text" value="${esc(card.name)}" data-ci="${ci}" class="dn" placeholder="カード名"><div class="deck-cnt"><button data-ci="${ci}" class="dc-minus">−</button><span>${card.count}</span><button data-ci="${ci}" class="dc-plus">+</button></div><select class="ds" data-ci="${ci}">${SECTIONS.map(s=>`<option value="${s}"${s===card.section?' selected':''}>${SEC_SHORT[s]}</option>`).join('')}</select><button class="rm" data-ci="${ci}">×</button>`;
+      deckEl.appendChild(row);
     }
-    cardList.innerHTML = html;
-
-    // Generate XLSX
-    log("XLSX を生成中 ...");
-    lastBuffer = await generateXLSX(cards);
-    log('<span class="ok">XLSX 生成完了</span>');
-    dlBtn.style.display = "inline-block";
-  } catch (e) {
-    log(`エラー: ${e.message}`, "err");
-    console.error(e);
   }
+  if(currentCards.length){
+    const mt=currentCards.filter(c=>MAIN_SEC.includes(c.section)).reduce((s,c)=>s+c.count,0);
+    const et=currentCards.filter(c=>c.section==="エクストラデッキ").reduce((s,c)=>s+c.count,0);
+    const st=currentCards.filter(c=>c.section==="サイドデッキ").reduce((s,c)=>s+c.count,0);
+    const t=document.createElement('div');t.className='deck-total';
+    t.innerHTML=`メイン: <strong>${mt}</strong> / EX: <strong>${et}</strong> / サイド: <strong>${st}</strong>`;
+    deckEl.appendChild(t);
+  }
+  updateUI();
+}
+deckEl.addEventListener('input',e=>{
+  const ci=parseInt(e.target.dataset.ci);if(isNaN(ci))return;
+  if(e.target.classList.contains('dn'))currentCards[ci].name=e.target.value;
+});
+deckEl.addEventListener('focusout',e=>{
+  if(e.target.classList.contains('dn'))pushUndo();
+});
+deckEl.addEventListener('change',e=>{
+  const ci=parseInt(e.target.dataset.ci);if(isNaN(ci))return;
+  if(e.target.classList.contains('ds')){currentCards[ci].section=e.target.value;renderDeckEditor()}
+});
+deckEl.addEventListener('click',e=>{
+  const btn=e.target.closest('button');if(!btn)return;
+  const ci=parseInt(btn.dataset.ci);if(isNaN(ci))return;
+  if(btn.classList.contains('dc-plus')){currentCards[ci].count=Math.min(3,currentCards[ci].count+1);renderDeckEditor()}
+  else if(btn.classList.contains('dc-minus')){currentCards[ci].count=Math.max(0,currentCards[ci].count-1);renderDeckEditor()}
+  else if(btn.classList.contains('rm')){currentCards.splice(ci,1);renderDeckEditor()}
+});
+document.getElementById('add-card').addEventListener('click',()=>{
+  currentCards.push({name:"",count:1,section:"モンスターカード"});renderDeckEditor();
+  const inputs=deckEl.querySelectorAll('.dn');if(inputs.length)inputs[inputs.length-1].focus();
+});
+
+// ===== Combo Editor =====
+function getMainNames(){return currentCards.filter(c=>MAIN_SEC.includes(c.section)).map(c=>c.name)}
+function cardOpts(sel=""){const ns=getMainNames();let h='<option value="">-- 選択 --</option>';for(const n of ns)h+=`<option value="${n}"${n===sel?' selected':''}>${n}</option>`;return h}
+function existingGroups(){const s=new Set();for(const g of comboGroups)if(g.group)s.add(g.group);return[...s]}
+function groupField(gi,val){
+  const eg=existingGroups(),hasE=eg.length>0,isE=eg.includes(val);
+  const fm=comboGroups[gi]._fm;delete comboGroups[gi]._fm;
+  let useS;if(fm==="input")useS=false;else if(fm==="select")useS=true;else useS=hasE&&(isE||!val);
+  if(useS){let o='<option value="">-- 群を選択 --</option>';for(const n of eg)o+=`<option value="${n}"${n===val?' selected':''}>${n}</option>`;
+    return `<select data-gi="${gi}" class="cgns">${o}</select><button class="combo-mode" data-gi="${gi}" data-mode="input">新規</button>`}
+  return `<input type="text" value="${val}" data-gi="${gi}" class="cgn" placeholder="新しい群名 (例: 初動A)">${hasE?`<button class="combo-mode" data-gi="${gi}" data-mode="select">選択</button>`:""}`
+}
+function renderComboGroups(){
+  pushUndo();
+  comboGroupsEl.innerHTML="";
+  comboGroups.forEach((g,gi)=>{
+    let slots="";g.slots.forEach((s,si)=>{
+      slots+=`<div class="combo-slot"><select data-gi="${gi}" data-si="${si}" class="ccs">${cardOpts(s.name)}</select><input type="number" min="-3" max="3" value="${s.count}" data-gi="${gi}" data-si="${si}" class="cci"><button class="rm" data-gi="${gi}" data-si="${si}" style="width:20px;height:20px;font-size:.75rem;background:0;border:0;color:var(--err);cursor:pointer">×</button></div>`});
+    const div=document.createElement('div');div.className='combo-group';
+    div.innerHTML=`<div class="combo-hdr"><label>群</label>${groupField(gi,g.group)}<button class="combo-del" data-gi="${gi}">🗑</button></div><div class="combo-slots">${slots}</div><button class="combo-add-slot" data-gi="${gi}"${g.slots.length>=6?' disabled style="opacity:.4;cursor:default"':''}>+ カード追加 (${g.slots.length}/6)</button>`;
+    comboGroupsEl.appendChild(div);
+  });
+  updateUI();
+}
+comboGroupsEl.addEventListener('change',e=>{
+  const gi=parseInt(e.target.dataset.gi);
+  if(e.target.classList.contains('ccs')){comboGroups[gi].slots[parseInt(e.target.dataset.si)].name=e.target.value}
+  else if(e.target.classList.contains('cci')){comboGroups[gi].slots[parseInt(e.target.dataset.si)].count=parseInt(e.target.value)||0}
+  else if(e.target.classList.contains('cgns')){comboGroups[gi].group=e.target.value}
+});
+comboGroupsEl.addEventListener('input',e=>{
+  const gi=parseInt(e.target.dataset.gi);
+  if(e.target.classList.contains('cgn'))comboGroups[gi].group=e.target.value;
+  else if(e.target.classList.contains('cci'))comboGroups[gi].slots[parseInt(e.target.dataset.si)].count=parseInt(e.target.value)||0;
+});
+comboGroupsEl.addEventListener('focusout',e=>{
+  if(e.target.classList.contains('cgn')||e.target.classList.contains('cci'))pushUndo();
+});
+comboGroupsEl.addEventListener('click',e=>{
+  const btn=e.target.closest('button');if(!btn)return;const gi=parseInt(btn.dataset.gi);
+  if(btn.classList.contains('combo-mode')){if(btn.dataset.mode==="input")comboGroups[gi].group="";comboGroups[gi]._fm=btn.dataset.mode;renderComboGroups()}
+  else if(btn.classList.contains('rm')&&btn.dataset.si!==undefined){comboGroups[gi].slots.splice(parseInt(btn.dataset.si),1);renderComboGroups()}
+  else if(btn.classList.contains('combo-del')){comboGroups.splice(gi,1);renderComboGroups()}
+  else if(btn.classList.contains('combo-add-slot')&&comboGroups[gi].slots.length<6){comboGroups[gi].slots.push({name:"",count:1});renderComboGroups()}
+});
+document.querySelectorAll('.combo-add-grp').forEach(b=>b.addEventListener('click',()=>{comboGroups.push({group:"",slots:[{name:"",count:1}]});renderComboGroups()}));
+document.getElementById('combo-clear').addEventListener('click',()=>{comboGroups=[];renderComboGroups()});
+
+const saveBtn=document.getElementById('save-btn');
+function updateUI(){
+  const hasCards=currentCards.length>0;
+  dlBtn.style.display=hasCards?"block":"none";
+  saveBtn.style.display=hasCards?"block":"none";
+  if(hasCards){comboEmpty.style.display="none";comboEditor.style.display="block"}
+  else{comboEmpty.style.display="block";comboEditor.style.display="none"}
+  updateCalcUI();
+}
+// ===== Save button (custom dialog) =====
+function defaultDeckName(){return new Date().toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function showSaveDialog(){
+  return new Promise(resolve=>{
+    const existing=savedDecks.find(d=>d.id===activeDeckId);
+    const overlay=document.createElement('div');overlay.className='save-dlg-overlay';
+    overlay.innerHTML=`<div class="save-dlg"><h3>デッキを保存</h3><input id="save-dlg-input" placeholder="デッキ名（空欄でタイムスタンプ）" value="${esc(existing?existing.name:'')}"><div class="save-dlg-btns"><button class="cancel">キャンセル</button><button class="ok">保存</button></div></div>`;
+    document.body.appendChild(overlay);
+    const inp=overlay.querySelector('#save-dlg-input');
+    const close=(val)=>{overlay.remove();resolve(val)};
+    inp.focus();inp.select();
+    overlay.querySelector('.cancel').addEventListener('click',()=>close(null));
+    overlay.querySelector('.ok').addEventListener('click',()=>close(inp.value));
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter')close(inp.value);if(e.key==='Escape')close(null)});
+    overlay.addEventListener('click',e=>{if(e.target===overlay)close(null)});
+  });
+}
+saveBtn.addEventListener('click',async()=>{
+  const input=await showSaveDialog();
+  if(input===null)return;
+  const name=input.trim()||defaultDeckName();
+  saveAsNew(name);
+  saveBtn.textContent="✓ 保存しました";
+  setTimeout(()=>{saveBtn.textContent="💾 デッキを保存"},1500);
+});
+
+// ===== Probability Calculation Engine =====
+// Multivariate hypergeometric: enumerate all distinct hands by card-type counts.
+// Much faster than brute-force C(N,h) combinations.
+
+function comb(n,r){if(r<0||r>n)return 0;if(r===0||r===n)return 1;let v=1;for(let i=0;i<r;i++)v=v*(n-i)/(i+1);return Math.round(v)}
+
+function checkRule(hand,rule){
+  // hand: Map<cardName, drawnCount>, rule: [{name,count}]
+  // count>0 → must draw >= count; count<0 → must draw <= |count+1|; count=0 → must draw 0
+  let conditions=0;
+  for(const{name,count}of rule){
+    if(!name)continue;
+    const drawn=hand.get(name)||0;
+    if(count>0){conditions++;if(drawn<count)return false}
+    else if(count<0){conditions++;if(drawn>Math.abs(count+1))return false}
+    else{conditions++;if(drawn>0)return false}
+  }
+  return conditions>0;
 }
 
-// Drag & drop
-dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("hover"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("hover"));
-dropZone.addEventListener("drop", e => {
-  e.preventDefault();
-  dropZone.classList.remove("hover");
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-dropZone.addEventListener("click", () => fileInput.click());
-fileInput.addEventListener("change", () => {
-  if (fileInput.files.length) handleFile(fileInput.files[0]);
+function calcProbabilities(cards,combos,handSize){
+  // Build unique card pools (main deck only)
+  const mainCards=cards.filter(c=>MAIN_SEC.includes(c.section));
+  const uniqueNames=[...new Set(mainCards.map(c=>c.name))];
+  const cardCounts=new Map(); // name → total copies in deck
+  for(const c of mainCards)cardCounts.set(c.name,(cardCounts.get(c.name)||0)+c.count);
+  // Merge duplicates: uniqueNames with their counts
+  const pools=uniqueNames.map(n=>({name:n,max:cardCounts.get(n)||0}));
+  const N=pools.reduce((s,p)=>s+p.max,0); // total deck size
+  if(N<handSize)return null;
+  const totalHands=comb(N,handSize);
+
+  // Parse combo rules (group them by 群)
+  const rules=combos.filter(g=>g.slots.some(s=>s.name)).map(g=>({group:g.group,slots:g.slots.filter(s=>s.name)}));
+  if(!rules.length)return null;
+
+  // Enumerate all distinct hands via recursive generation
+  // hand[i] = how many of pools[i] we draw
+  const hand=new Array(pools.length).fill(0);
+  const ruleHits=new Array(rules.length).fill(0);
+  const groups=[...new Set(rules.map(r=>r.group||""))];
+  const nG=groups.length;
+  // Map each rule to its group index
+  const ruleGroupIdx=rules.map(r=>groups.indexOf(r.group||""));
+  // For each hand, compute a bitmask of which groups have at least 1 match
+  // Then accumulate weight per bitmask
+  const maskHits=new Float64Array(1<<nG); // bitmask → total weight
+  let anyHit=0;
+
+  function enumerate(idx,remaining){
+    if(idx===pools.length){
+      if(remaining!==0)return;
+      let w=1;
+      for(let i=0;i<pools.length;i++){w*=comb(pools[i].max,hand[i]);if(w===0)return}
+      const hm=new Map();
+      for(let i=0;i<pools.length;i++)if(hand[i]>0)hm.set(pools[i].name,hand[i]);
+      let mask=0;
+      for(let ri=0;ri<rules.length;ri++){
+        if(checkRule(hm,rules[ri].slots)){ruleHits[ri]+=w;mask|=(1<<ruleGroupIdx[ri])}
+      }
+      if(mask)anyHit+=w;
+      maskHits[mask]+=w;
+      return;
+    }
+    const maxDraw=Math.min(pools[idx].max,remaining);
+    for(let d=0;d<=maxDraw;d++){
+      hand[idx]=d;
+      enumerate(idx+1,remaining-d);
+    }
+    hand[idx]=0;
+  }
+
+  enumerate(0,handSize);
+
+  // Compute subset probabilities from bitmask hits
+  // For a subset S of groups:
+  //   AND(S) = sum of maskHits[m] where m has ALL bits of S set
+  //   OR(S)  = sum of maskHits[m] where m has ANY bit of S set
+  function subsetProb(subsetMask,mode){
+    let total=0;
+    for(let m=0;m<(1<<nG);m++){
+      if(!maskHits[m])continue;
+      if(mode==='and'&&(m&subsetMask)===subsetMask)total+=maskHits[m];
+      else if(mode==='or'&&(m&subsetMask)!==0)total+=maskHits[m];
+    }
+    return total/totalHands;
+  }
+
+  // Build all subsets of size >= 2
+  const combos2=[];
+  for(let mask=3;mask<(1<<nG);mask++){
+    const bits=[];for(let i=0;i<nG;i++)if(mask&(1<<i))bits.push(i);
+    if(bits.length>=2)combos2.push({mask,indices:bits});
+  }
+
+  return{
+    totalHands,
+    groups:groups.map((g,i)=>({
+      name:g,
+      prob:subsetProb(1<<i,'or'),
+      ruleCount:rules.filter(r=>(r.group||"")===g).length
+    })),
+    subsets:combos2.map(c=>({
+      names:c.indices.map(i=>groups[i]),
+      andProb:subsetProb(c.mask,'and'),
+      orProb:subsetProb(c.mask,'or')
+    })),
+    overallProb:anyHit/totalHands
+  };
+}
+
+// ===== Calc Tab =====
+const calcEmpty=document.getElementById('calc-empty');
+const calcContent=document.getElementById('calc-content');
+const calcResults=document.getElementById('calc-results');
+const calcRunBtn=document.getElementById('calc-run');
+
+function updateCalcUI(){
+  const hasData=currentCards.filter(c=>MAIN_SEC.includes(c.section)).length>0 && comboGroups.some(g=>g.slots.some(s=>s.name));
+  calcEmpty.style.display=hasData?'none':'block';
+  calcContent.style.display=hasData?'block':'none';
+}
+
+function barColor(p){
+  if(p>=0.9)return'#4ade80';if(p>=0.7)return'#facc15';if(p>=0.5)return'#fb923c';return'#f87171';
+}
+
+calcRunBtn.addEventListener('click',()=>{
+  const handSize=parseInt(document.getElementById('calc-hand').value);
+  calcRunBtn.disabled=true;calcRunBtn.textContent='計算中...';
+  // Use setTimeout to let UI update
+  setTimeout(()=>{
+    try{
+      const result=calcProbabilities(currentCards,comboGroups,handSize);
+      if(!result){calcResults.innerHTML='<div class="calc-empty">計算できるデータがありません</div>';return}
+      let html='';
+      const gLabel=g=>g||'(未分類)';
+      // Overall
+      html+=`<div class="calc-summary"><div class="big">${(result.overallProb*100).toFixed(2)}%</div><div class="lbl">いずれかの初動を引く確率（${handSize}枚）</div></div>`;
+      // Per group (single)
+      html+='<div class="calc-card"><div class="calc-card-title">群ごとの確率</div>';
+      for(const g of result.groups){
+        html+=`<div class="calc-bar-wrap"><div class="calc-bar-label"><span>${esc(gLabel(g.name))}（${g.ruleCount}パターン）</span><span style="color:${barColor(g.prob)}">${(g.prob*100).toFixed(2)}%</span></div><div class="calc-bar"><div class="calc-bar-fill" style="width:${g.prob*100}%;background:${barColor(g.prob)}"></div></div></div>`;
+      }
+      html+='</div>';
+      // Subset AND/OR (size >= 2)
+      if(result.subsets.length>0){
+        html+='<div class="calc-card"><div class="calc-card-title">群の組み合わせ</div>';
+        for(const s of result.subsets){
+          const names=s.names.map(n=>gLabel(n));
+          const label=names.join(' × ');
+          html+=`<div class="calc-bar-wrap"><div class="calc-bar-label"><span>${esc(label)} AND</span><span style="color:${barColor(s.andProb)}">${(s.andProb*100).toFixed(2)}%</span></div><div class="calc-bar"><div class="calc-bar-fill" style="width:${s.andProb*100}%;background:${barColor(s.andProb)}"></div></div></div>`;
+          html+=`<div class="calc-bar-wrap"><div class="calc-bar-label"><span>${esc(label)} OR</span><span style="color:${barColor(s.orProb)}">${(s.orProb*100).toFixed(2)}%</span></div><div class="calc-bar"><div class="calc-bar-fill" style="width:${s.orProb*100}%;background:${barColor(s.orProb)}"></div></div></div>`;
+        }
+        html+='</div>';
+      }
+      calcResults.innerHTML=html;
+    }catch(e){calcResults.innerHTML=`<div class="calc-empty" style="color:var(--err)">エラー: ${esc(e.message)}</div>`;console.error(e)}
+    finally{calcRunBtn.disabled=false;calcRunBtn.textContent='確率を計算'}
+  },50);
 });
 
-// Download
-dlBtn.addEventListener("click", () => {
-  if (!lastBuffer) return;
-  const blob = new Blob([lastBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "output.xlsx";
-  a.click();
-  URL.revokeObjectURL(url);
+// ===== File handling =====
+async function handleFile(file){
+  clearStatus();
+  const n=file.name.toLowerCase();const isPDF=n.endsWith('.pdf'),isXLSX=n.endsWith('.xlsx');
+  if(!isPDF&&!isXLSX){log("PDF または XLSX ファイルを選択してください。","err");return}
+  log(`読み込み中: ${file.name} ...`);
+  try{
+    const ab=await file.arrayBuffer();const deckName=file.name.replace(/\.(pdf|xlsx)$/i,"");
+    if(isPDF){log("PDF を解析中 ...");currentCards=await parsePDF(ab);comboGroups=[]}
+    else{log("XLSX を読み込み中 ...");const r=await parseXLSX(ab);currentCards=r.cards;comboGroups=r.combos}
+    log(`<span class="ok">読み込み完了: ${currentCards.length} 種 / ${currentCards.reduce((s,c)=>s+c.count,0)} 枚</span>`);
+    renderDeckEditor();renderComboGroups();updateUI();
+    activeDeckId=null;saveAsNew(deckName);
+  }catch(e){log(`エラー: ${e.message}`,"err");console.error(e)}
+}
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('hover')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('hover'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('hover');if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0])});
+dropZone.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',()=>{if(fileInput.files.length)handleFile(fileInput.files[0]);fileInput.value=""});
+
+// ===== Download =====
+dlBtn.addEventListener('click',async()=>{
+  if(!currentCards.length)return;
+  try{
+    dlBtn.textContent="生成中 ...";dlBtn.disabled=true;
+    const d=savedDecks.find(d=>d.id===activeDeckId);const name=d?d.name:"output";
+    const buf=await generateXLSX(currentCards,comboGroups);
+    const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name+".xlsx";a.click();URL.revokeObjectURL(url);
+  }finally{dlBtn.textContent="⬇ XLSX をダウンロード";dlBtn.disabled=false}
 });
+
+// ===== First-visit help popup =====
+if(!localStorage.getItem('ygo-visited')){
+  localStorage.setItem('ygo-visited','1');
+  const helpContent=document.getElementById('tab-help').innerHTML;
+  const overlay=document.createElement('div');overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal-lg"><button class="close-btn">×</button>${helpContent}</div>`;
+  document.body.appendChild(overlay);
+  const close=()=>overlay.remove();
+  overlay.querySelector('.close-btn').addEventListener('click',close);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
+}
 </script>
 </body>
 </html>
