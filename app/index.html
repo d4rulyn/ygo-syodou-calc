@@ -144,6 +144,8 @@
   .combo-hdr input:focus,.combo-hdr select:focus{border-color:var(--accent)}
   .combo-mode{padding:.25rem .4rem;background:0;border:1px solid var(--border);border-radius:5px;color:var(--text-muted);cursor:pointer;font-size:.65rem;white-space:nowrap;transition:all .2s}
   .combo-mode:hover{border-color:var(--accent);color:var(--accent)}
+  .combo-dup{width:26px;height:26px;background:0;border:1px solid var(--border);border-radius:5px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;transition:all .2s}
+  .combo-dup:hover{background:var(--bg3);border-color:var(--accent);color:var(--accent)}
   .combo-del{width:26px;height:26px;background:0;border:1px solid var(--border);border-radius:5px;color:var(--err);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .2s}
   .combo-del:hover{background:var(--bg3);border-color:var(--err)}
   .combo-slots{display:flex;flex-wrap:wrap;gap:.4rem}
@@ -757,7 +759,7 @@ function renderComboGroups(){
     let slots="";g.slots.forEach((s,si)=>{
       slots+=`<div class="combo-slot"><select data-gi="${gi}" data-si="${si}" class="ccs">${cardOpts(s.name)}</select><input type="number" min="-3" max="3" value="${s.count}" data-gi="${gi}" data-si="${si}" class="cci"><button class="rm" data-gi="${gi}" data-si="${si}" style="width:20px;height:20px;font-size:.75rem;background:0;border:0;color:var(--err);cursor:pointer">×</button></div>`});
     const div=document.createElement('div');div.className='combo-group';
-    div.innerHTML=`<div class="combo-hdr"><label>群</label>${groupField(gi,g.group)}<button class="combo-del" data-gi="${gi}">🗑</button></div><div class="combo-slots">${slots}</div><button class="combo-add-slot" data-gi="${gi}"${g.slots.length>=6?' disabled style="opacity:.4;cursor:default"':''}>+ カード追加 (${g.slots.length}/6)</button>`;
+    div.innerHTML=`<div class="combo-hdr"><label>群</label>${groupField(gi,g.group)}<button class="combo-dup" data-gi="${gi}" title="複製">📋</button><button class="combo-del" data-gi="${gi}">🗑</button></div><div class="combo-slots">${slots}</div><button class="combo-add-slot" data-gi="${gi}"${g.slots.length>=6?' disabled style="opacity:.4;cursor:default"':''}>+ カード追加 (${g.slots.length}/6)</button>`;
     comboGroupsEl.appendChild(div);
   });
   updateUI();
@@ -780,6 +782,7 @@ comboGroupsEl.addEventListener('click',e=>{
   const btn=e.target.closest('button');if(!btn)return;const gi=parseInt(btn.dataset.gi);
   if(btn.classList.contains('combo-mode')){if(btn.dataset.mode==="input")comboGroups[gi].group="";comboGroups[gi]._fm=btn.dataset.mode;renderComboGroups()}
   else if(btn.classList.contains('rm')&&btn.dataset.si!==undefined){comboGroups[gi].slots.splice(parseInt(btn.dataset.si),1);renderComboGroups()}
+  else if(btn.classList.contains('combo-dup')){comboGroups.splice(gi+1,0,JSON.parse(JSON.stringify(comboGroups[gi])));renderComboGroups()}
   else if(btn.classList.contains('combo-del')){comboGroups.splice(gi,1);renderComboGroups()}
   else if(btn.classList.contains('combo-add-slot')&&comboGroups[gi].slots.length<6){comboGroups[gi].slots.push({name:"",count:1});renderComboGroups()}
 });
