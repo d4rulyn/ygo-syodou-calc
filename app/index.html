@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YGO デッキPDF → 初動計算機 XLSX 変換</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+    background: #1a1a2e; color: #e0e0e0;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 2rem 1rem;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 1.5rem; color: #a0c4ff; }
+  .drop-zone {
+    width: 100%; max-width: 520px;
+    border: 2px dashed #4a4a6a; border-radius: 12px;
+    padding: 3rem 2rem; text-align: center;
+    cursor: pointer; transition: .2s;
+    background: #16213e;
+  }
+  .drop-zone.hover { border-color: #a0c4ff; background: #1a2744; }
+  .drop-zone p { margin-bottom: .8rem; color: #8888aa; }
+  .drop-zone .icon { font-size: 2.5rem; margin-bottom: .5rem; }
+  input[type=file] { display: none; }
+  #status {
+    margin-top: 1.5rem; width: 100%; max-width: 520px;
+    font-size: .9rem; line-height: 1.6;
+  }
+  #status .ok { color: #66bb6a; }
+  #status .err { color: #ef5350; }
+  #card-list {
+    margin-top: 1rem; width: 100%; max-width: 520px;
+    max-height: 400px; overflow-y: auto;
+    background: #16213e; border-radius: 8px; padding: 1rem;
+    font-size: .82rem; line-height: 1.5;
+  }
+  #card-list .section { color: #a0c4ff; font-weight: bold; margin-top: .6rem; }
+  #card-list .section:first-child { margin-top: 0; }
+  #download-btn {
+    margin-top: 1.2rem; padding: .7rem 2rem;
+    background: #2979ff; color: #fff; border: none; border-radius: 8px;
+    font-size: 1rem; cursor: pointer; display: none;
+  }
+  #download-btn:hover { background: #448aff; }
+</style>
+</head>
+<body>
+
+<h1>YGO デッキPDF → 初動計算機 XLSX</h1>
+
+<div class="drop-zone" id="dropZone">
+  <div class="icon">📄</div>
+  <p>デッキ登録PDFをドラッグ＆ドロップ</p>
+  <p style="font-size:.85rem">またはクリックしてファイルを選択</p>
+  <input type="file" id="fileInput" accept=".pdf">
+</div>
+
+<div id="status"></div>
+<div id="card-list"></div>
+<button id="download-btn">XLSX をダウンロード</button>
+
+<!-- PDF.js -->
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs" type="module"></script>
+<!-- ExcelJS -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+<script type="module">
+// ============================================================
+// PDF.js setup
+// ============================================================
+const pdfjsLib = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+
+// ============================================================
+// X coordinate ranges (same as Python notebook)
+// ============================================================
+const X_RANGES = {
+  mon_name:   [68, 217],  mon_cnt:   [217, 237],
+  mag_name:   [237, 387], mag_cnt:   [387, 407],
+  trap_name:  [407, 557], trap_cnt:  [557, 580],
+  extra_name: [68, 217],  extra_cnt: [217, 237],
+  side_name:  [237, 387], side_cnt:  [387, 407],
+};
+
+// ============================================================
+// PDF Parsing
+// ============================================================
+
+/** Extract words with {text, x, top} from a PDF.js page (top-down coords). */
+async function extractWords(page) {
+  const vp = page.getViewport({ scale: 1 });
+  const pageHeight = vp.height;
+  const content = await page.getTextContent();
+  return content.items
+    .filter(item => item.str.trim())
+    .map(item => ({
+      text: item.str.trim(),
+      x: item.transform[4],
+      top: pageHeight - item.transform[5],  // flip Y
+    }));
+}
+
+/** Detect Y bounds for each section from words. */
+function findYBounds(words) {
+  const b = {
+    main_header: null, main_end: null,
+    extra_header: null, extra_end: null,
+    side_header: null, side_end: null,
+  };
+  for (const w of words) {
+    const txt = w.text;
+    const top = w.top;
+    if (txt.includes("モンスターカード合計"))          b.main_end = top;
+    else if (txt.includes("モンスターカード") && !b.main_header)  b.main_header = top;
+    else if (txt.includes("エクストラデッキ合計"))      b.extra_end = top;
+    else if (txt.includes("エクストラデッキ") && !b.extra_header) b.extra_header = top;
+    else if (txt.includes("サイドデッキ合計"))          b.side_end = top;
+    else if (txt.includes("サイドデッキ") && !b.side_header)      b.side_header = top;
+  }
+  return b;
+}
+
+/**
+ * Filter words within an X/Y box, group into rows by Y proximity,
+ * and return sorted lines (top to bottom).
+ */
+function cropWords(words, x0, x1, yTop, yBottom, tolerance = 4) {
+  // Filter to bounding box (yTop < top < yBottom)
+  const filtered = words.filter(w =>
+    w.x >= x0 && w.x < x1 && w.top > yTop && w.top < yBottom
+  );
+
+  // Group by Y proximity into rows
+  const rows = [];
+  const sorted = [...filtered].sort((a, b) => a.top - b.top);
+  for (const w of sorted) {
+    const existing = rows.find(r => Math.abs(r[0].top - w.top) < tolerance);
+    if (existing) existing.push(w);
+    else rows.push([w]);
+  }
+
+  // Sort each row by X, concat text
+  return rows
+    .sort((a, b) => a[0].top - b[0].top)
+    .map(row => row.sort((a, b) => a.x - b.x).map(w => w.text).join(""));
+}
+
+/** Extract card entries for one section. */
+function extractSection(words, section, nameKey, cntKey, yTop, yBottom) {
+  const nameLines = cropWords(words, ...X_RANGES[nameKey], yTop, yBottom);
+  const cntLines  = cropWords(words, ...X_RANGES[cntKey],  yTop, yBottom);
+
+  // Parse counts (only keep integer values)
+  const counts = [];
+  for (const ln of cntLines) {
+    const n = parseInt(ln, 10);
+    if (!isNaN(n)) counts.push(n);
+  }
+
+  const cards = [];
+  for (let i = 0; i < Math.min(nameLines.length, counts.length); i++) {
+    const name = nameLines[i];
+    // Skip header-like or total-like lines
+    if (!name || name.includes("合計") || name.includes("枚数") || name.includes("カード名")) continue;
+    cards.push({ name, count: counts[i], section });
+  }
+  return cards;
+}
+
+/** Parse a deck registration PDF and return structured card list. */
+async function parseDeckPDF(arrayBuffer) {
+  const pdf = await pdfjsLib.getDocument({
+    data: arrayBuffer,
+    cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/cmaps/",
+    cMapPacked: true,
+  }).promise;
+
+  const page = await pdf.getPage(1);
+  const words = await extractWords(page);
+  const b = findYBounds(words);
+
+  if (b.main_header == null || b.main_end == null) {
+    throw new Error("メインデッキのセクション境界が検出できませんでした");
+  }
+
+  const cards = [
+    ...extractSection(words, "モンスターカード", "mon_name",   "mon_cnt",   b.main_header, b.main_end),
+    ...extractSection(words, "魔法カード",       "mag_name",   "mag_cnt",   b.main_header, b.main_end),
+    ...extractSection(words, "罠カード",         "trap_name",  "trap_cnt",  b.main_header, b.main_end),
+  ];
+  if (b.extra_header != null && b.extra_end != null) {
+    cards.push(...extractSection(words, "エクストラデッキ", "extra_name", "extra_cnt", b.extra_header, b.extra_end));
+  }
+  if (b.side_header != null && b.side_end != null) {
+    cards.push(...extractSection(words, "サイドデッキ", "side_name", "side_cnt", b.side_header, b.side_end));
+  }
+
+  return cards;
+}
+
+// ============================================================
+// XLSX Generation (ExcelJS)
+// ============================================================
+
+const HEADER_FILL = {
+  type: "pattern", pattern: "solid",
+  fgColor: { argb: "FFC9DAF8" },
+};
+
+function setHeader(cell, value) {
+  cell.value = value;
+  cell.fill = HEADER_FILL;
+}
+
+async function generateXLSX(cards) {
+  const wb = new ExcelJS.Workbook();
+
+  // ---- Sheet1: 初動組み合わせ ----
+  const ws1 = wb.addWorksheet("初動組み合わせ");
+  setHeader(ws1.getCell("A1"), "群");
+  const nameCols = ["B", "D", "F", "H", "J", "L"];
+  const cntCols  = ["C", "E", "G", "I", "K", "M"];
+  for (let i = 0; i < 6; i++) {
+    setHeader(ws1.getCell(`${nameCols[i]}1`), "名前");
+    setHeader(ws1.getCell(`${cntCols[i]}1`), "枚数");
+  }
+  ws1.getColumn("A").width = 8.13;
+  for (const c of cntCols) ws1.getColumn(c).width = 7.0;
+
+  // Data validation: name columns -> dropdown from デッキ sheet
+  for (const col of nameCols) {
+    for (let r = 2; r <= 2000; r++) {
+      ws1.getCell(`${col}${r}`).dataValidation = {
+        type: "list",
+        formulae: ["'デッキ'!$B$2:$B$2001"],
+        allowBlank: true,
+        showDropDown: false,
+      };
+    }
+  }
+  // Data validation: count columns -> fixed list
+  for (const col of cntCols) {
+    for (let r = 2; r <= 2000; r++) {
+      ws1.getCell(`${col}${r}`).dataValidation = {
+        type: "list",
+        formulae: ['"0,1,2,3,-1,-2,-3"'],
+        allowBlank: true,
+        showDropDown: false,
+      };
+    }
+  }
+
+  // ---- Sheet2: デッキ ----
+  const ws2 = wb.addWorksheet("デッキ");
+  for (const [i, label] of ["群", "名前", "枚数", "合計枚数"].entries()) {
+    setHeader(ws2.getCell(1, i + 1), label);
+  }
+
+  // Main deck cards only (monster/magic/trap)
+  const mainCards = cards.filter(c =>
+    ["モンスターカード", "魔法カード", "罠カード"].includes(c.section)
+  );
+  for (let i = 0; i < mainCards.length; i++) {
+    ws2.getCell(i + 2, 2).value = mainCards[i].name;
+    ws2.getCell(i + 2, 3).value = mainCards[i].count;
+  }
+
+  // D2: total formula
+  ws2.getCell("D2").value = { formula: "SUM(C2:C63)" };
+
+  ws2.getColumn("A").width = 5.88;
+  ws2.getColumn("B").width = 20.0;
+  ws2.getColumn("C").width = 6.88;
+
+  // Data validation: C2:C63
+  for (let r = 2; r <= 63; r++) {
+    ws2.getCell(`C${r}`).dataValidation = {
+      type: "list",
+      formulae: ['"0,1,2,3"'],
+      allowBlank: true,
+      showDropDown: false,
+    };
+  }
+
+  return wb.xlsx.writeBuffer();
+}
+
+// ============================================================
+// UI
+// ============================================================
+
+const dropZone  = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+const statusEl  = document.getElementById("status");
+const cardList  = document.getElementById("card-list");
+const dlBtn     = document.getElementById("download-btn");
+
+let lastBuffer = null;
+
+function log(msg, cls = "") {
+  statusEl.innerHTML += `<div class="${cls}">${msg}</div>`;
+}
+
+function clearUI() {
+  statusEl.innerHTML = "";
+  cardList.innerHTML = "";
+  dlBtn.style.display = "none";
+  lastBuffer = null;
+}
+
+async function handleFile(file) {
+  clearUI();
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    log("PDFファイルを選択してください。", "err");
+    return;
+  }
+  log(`読み込み中: ${file.name} ...`);
+
+  try {
+    const ab = await file.arrayBuffer();
+    log("PDF を解析中 ...");
+    const cards = await parseDeckPDF(ab);
+
+    log(`<span class="ok">抽出完了: ${cards.length} 種 / ${cards.reduce((s, c) => s + c.count, 0)} 枚</span>`);
+
+    // Show card list
+    let html = "";
+    let curSection = "";
+    for (const c of cards) {
+      if (c.section !== curSection) {
+        curSection = c.section;
+        html += `<div class="section">${curSection}</div>`;
+      }
+      html += `<div>${c.name} x${c.count}</div>`;
+    }
+    cardList.innerHTML = html;
+
+    // Generate XLSX
+    log("XLSX を生成中 ...");
+    lastBuffer = await generateXLSX(cards);
+    log('<span class="ok">XLSX 生成完了</span>');
+    dlBtn.style.display = "inline-block";
+  } catch (e) {
+    log(`エラー: ${e.message}`, "err");
+    console.error(e);
+  }
+}
+
+// Drag & drop
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("hover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("hover"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("hover");
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+dropZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+// Download
+dlBtn.addEventListener("click", () => {
+  if (!lastBuffer) return;
+  const blob = new Blob([lastBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "output.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>

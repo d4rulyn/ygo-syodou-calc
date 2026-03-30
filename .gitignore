@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.ipynb
+pyproject.toml
+uv.lock
+
+# Output / sample files
+output.xlsx
+sample/
+
+# Agent / IDE
+.agent/
+.claude/
+PLAN.md
+logs/
