@@ -303,104 +303,114 @@
     <!-- Help tab -->
     <div class="tab-panel" id="tab-help">
       <div class="help">
-        <h2>全体の流れ</h2>
+        <h2>このアプリでできること</h2>
+        <p>単純な初動確率だけでなく、<strong>「初動が通る確率」「1妨害を貫通できる確率」「2妨害を貫通できる確率」を同時に計算</strong>できます。</p>
+        <div class="diagram">例: 計算結果
+─────────────────────────────
+総合確率（いずれか成立）   92.14%
+─────────────────────────────
+群ごと:
+  初動（8パターン）        89.23%
+  1妨害貫通（5パターン）   72.15%
+  2妨害貫通（3パターン）   38.20%
+─────────────────────────────
+群の組み合わせ:
+  初動 × 1妨害貫通 AND     68.50%  ← 展開 かつ 1妨害貫通
+  初動 × 2妨害貫通 AND     35.80%  ← 展開 かつ 2妨害貫通
+  初動 × 1妨害 × 2妨害 AND 31.20%  ← 全部同時</div>
+        <p>カードを1枚差し替えたときに、初動率と貫通力がどう変わるかを即座に比較できます。</p>
+
+        <h2>使い方</h2>
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
             <div class="step-title">デッキを登録する</div>
-            <p>「デッキ」タブで、PDF / XLSX を読み込むか、手入力でカードを登録します。</p>
-            <p>PDFは <a href="https://www.db.yugioh-card.com/yugiohdb/member_deck.action" target="_blank" rel="noopener" style="color:var(--accent)">遊戯王ニューロン</a> のマイデッキからダウンロードできます。</p>
-            <div class="diagram">┌──────────────────────────┐
-│  📄 PDF/XLSX をドロップ   │
-│  または「+ カード追加」   │
-│                          │
-│  灰流うらら     [−] 3 [+]│
-│  増殖するG      [−] 1 [+]│
-│  ...                     │
-└──────────────────────────┘</div>
+            <p>「デッキ」タブで、カードと枚数を登録します。2つの方法があります：</p>
+            <ul>
+              <li><strong>PDF読み込み</strong> — <a href="https://www.db.yugioh-card.com/yugiohdb/member_deck.action" target="_blank" rel="noopener" style="color:var(--accent)">遊戯王ニューロン</a>のマイデッキからPDFをダウンロードし、画面にドロップ</li>
+              <li><strong>手入力</strong> — 「+ カード追加」ボタンでカード名と枚数を入力。[−][+]ボタンで枚数を調整</li>
+            </ul>
+            <p>このアプリで保存したXLSXファイルを読み込み直すこともできます。</p>
           </div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <div class="step-title">初動の組み合わせを定義する</div>
-            <p>「組み合わせ」タブで、初動パターンを登録します。</p>
-            <p>各パターンは「この手札なら初動が成立する」という条件です。</p>
-            <div class="diagram">群: 展開A
-├─ カードX ×1以上  &  カードY ×1以上
-│
-群: 展開B
-├─ カードZ ×1以上
-│
-群: (未設定)
-├─ カードW ×2以上</div>
-            <h3>枚数の意味</h3>
+            <div class="step-title">初動パターンを登録する</div>
+            <p>「組み合わせ」タブで、<strong>「この手札なら初動が成立する」という条件</strong>をパターンとして登録します。</p>
+            <p>1つのパターンの中で複数カードを指定すると AND（全て同時に必要）になります。</p>
+            <div class="diagram">例: パターンの登録
+─────────────────────────────
+群: 初動
+  パターン1: カードA ×1以上
+  パターン2: カードB ×1以上 & カードC ×1以上
+  パターン3: カードD ×2以上
+
+群: 1妨害貫通
+  パターン4: カードA ×1以上 & カードE ×1以上
+  パターン5: カードB ×1以上 & カードC ×1以上 & カードF ×1以上</div>
+            <h3>群（グループ）の考え方</h3>
+            <p>群は<strong>「同じ目的のパターンをまとめるラベル」</strong>です。</p>
             <ul>
-              <li><strong>正の数 (1, 2, 3)</strong> → そのカードを <strong>N枚以上</strong> 引く必要がある</li>
-              <li><strong>0</strong> → 条件なし（無視されます）</li>
-              <li><strong>負の数 (-1, -2, -3)</strong> → そのカードを引かないことが条件
-                <ul>
-                  <li>-1 → 0枚（1枚も引かない）</li>
-                  <li>-2 → 1枚以下</li>
-                  <li>-3 → 2枚以下</li>
-                </ul>
-              </li>
+              <li>同じ群のパターンは <span class="tag tag-or">OR</span>（いずれか1つ成立すればOK）で計算</li>
+              <li>異なる群どうしの <span class="tag tag-and">AND</span> / <span class="tag tag-or">OR</span> が結果に表示される</li>
+              <li>群を設定しないパターンは「(未分類)」としてまとまります</li>
             </ul>
-            <h3>群について</h3>
-            <p>群はパターンをグループ分けするためのラベルです。</p>
+            <p>典型的な群の分け方：</p>
+            <div class="diagram">群: 初動       ← 展開が成立するパターン群
+群: 1妨害貫通  ← 1回止められても展開できるパターン群
+群: 2妨害貫通  ← 2回止められても展開できるパターン群</div>
+            <p>📋ボタンでパターンを複製できるので、初動パターンを複製してから条件を追加していくと効率的です。</p>
+            <h3>枚数の指定</h3>
             <ul>
-              <li>同じ群のパターンは <span class="tag tag-or">OR</span> で扱われます（いずれか1つ成立すればOK）</li>
-              <li>群を設定しないパターンは自動的に「(未分類)」群にまとまります</li>
+              <li><strong>正の数 (1, 2, 3)</strong> → そのカードを <strong>N枚以上</strong> 引く</li>
+              <li><strong>0</strong> → 条件なし（無視されます）</li>
+              <li><strong>-1</strong> → そのカードを <strong>1枚も引かない</strong></li>
+              <li><strong>-2</strong> → そのカードを <strong>1枚以下</strong> しか引かない</li>
+              <li><strong>-3</strong> → そのカードを <strong>2枚以下</strong> しか引かない</li>
             </ul>
           </div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <div class="step-title">初動確率を計算する</div>
+            <div class="step-title">確率を計算する</div>
             <p>「初動計算」タブで手札枚数（先攻5枚 / 後攻6枚）を選んで「確率を計算」ボタンを押します。</p>
+            <h3>計算結果の見方</h3>
+            <ul>
+              <li><strong>総合確率</strong> — 全パターン通しで、いずれかが成立する確率</li>
+              <li><strong>群ごとの確率</strong> — 各群について、その群内のいずれかのパターンが成立する確率</li>
+              <li><strong>群の組み合わせ</strong>（群が2つ以上のとき）
+                <ul>
+                  <li><span class="tag tag-and">AND</span> = 選んだ群が <strong>全て同時に</strong> 成立する確率</li>
+                  <li><span class="tag tag-or">OR</span> = 選んだ群の <strong>いずれか</strong> が成立する確率</li>
+                </ul>
+              </li>
+            </ul>
+            <p>例えば「初動 × 1妨害貫通 <span class="tag tag-and">AND</span> 68.50%」は、<strong>初動が成立し、かつ1妨害を貫通できる手札を引く確率</strong>です。</p>
           </div>
         </div>
 
-        <h2>計算結果の見方</h2>
-        <div class="diagram">┌─────────────────────────────┐
-│       89.23%                │  ← 全パターン通しての確率
-│  いずれかの初動を引く確率   │
-└─────────────────────────────┘
-┌ 群ごとの確率 ───────────────┐
-│  展開A（5パターン） 72.15%  │  ← 群内いずれか成立
-│  展開B（3パターン） 65.40%  │
-│  (未分類)（2パターン）38.20%│
-└─────────────────────────────┘
-┌ 群の組み合わせ ─────────────┐
-│  展開A × 展開B AND  51.20%  │  ← 両方同時に成立
-│  展開A × 展開B OR   86.35%  │  ← どちらか成立
-│  ...                        │
-└─────────────────────────────┘</div>
-        <ul>
-          <li><span class="tag tag-and">AND</span> = 選んだ群の <strong>全て</strong> が同時に成立する確率</li>
-          <li><span class="tag tag-or">OR</span> = 選んだ群の <strong>いずれか</strong> が成立する確率</li>
-        </ul>
-
         <h2>保存と読み込み</h2>
         <ul>
-          <li><strong>💾 デッキを保存</strong> → 名前を付けてサイドバーに保存（ブラウザに記憶されます）</li>
+          <li><strong>💾 デッキを保存</strong> → 名前を付けてサイドバーに保存。何パターンでも保存可能</li>
           <li><strong>⬇ XLSX をダウンロード</strong> → Excel ファイルとして書き出し</li>
-          <li><strong>XLSX 読み込み</strong> → このアプリで保存した XLSX をドロップすると復元できます</li>
-          <li>サイドバーの ✎ でデッキ名を変更、× で削除</li>
+          <li><strong>XLSX 読み込み</strong> → このアプリで保存した XLSX をドロップするとデッキ＋組み合わせを復元</li>
+          <li>サイドバーの <strong>✎</strong> でデッキ名を変更（ダブルクリックでも可）、<strong>×</strong> で削除</li>
         </ul>
 
         <h2>キーボードショートカット</h2>
         <ul>
-          <li><span class="key">Ctrl</span> + <span class="key">Z</span> → 元に戻す（Mac: <span class="key">⌘</span><span class="key">Z</span>）</li>
+          <li><span class="key">Ctrl</span> + <span class="key">Z</span> → 元に戻す（Mac: <span class="key">⌘</span> + <span class="key">Z</span>）</li>
           <li><span class="key">Ctrl</span> + <span class="key">Y</span> / <span class="key">Ctrl</span> + <span class="key">Shift</span> + <span class="key">Z</span> → やり直す</li>
         </ul>
 
         <h2>対応ファイル</h2>
         <ul>
-          <li><strong>PDF</strong> → OCG公式デッキ登録シート。<a href="https://www.db.yugioh-card.com/yugiohdb/member_deck.action" target="_blank" rel="noopener" style="color:var(--accent)">遊戯王ニューロン</a>のマイデッキからPDFをダウンロードできます</li>
-          <li><strong>XLSX</strong> → このアプリで出力したファイル（デッキ + 組み合わせを復元）</li>
+          <li><strong>PDF</strong> — OCG公式デッキ登録シート。<a href="https://www.db.yugioh-card.com/yugiohdb/member_deck.action" target="_blank" rel="noopener" style="color:var(--accent)">遊戯王ニューロン</a>のマイデッキからPDFをダウンロードできます</li>
+          <li><strong>XLSX</strong> — このアプリで出力したファイル（デッキ + 組み合わせを復元）</li>
         </ul>
+
         <h2>プライバシーについて</h2>
         <p>このアプリは<strong>完全にブラウザ内で動作</strong>します。入力したカード情報、アップロードしたPDF・XLSXファイルの内容は外部サーバーに一切送信されません。保存データはお使いのブラウザの localStorage にのみ保存され、第三者がアクセスすることはありません。</p>
       </div>
